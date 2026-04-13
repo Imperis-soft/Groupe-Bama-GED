@@ -9,6 +9,7 @@ use App\Http\Controllers\DashboardController;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\WebDavController;
 use App\Http\Controllers\DocumentVerificationController;
+use App\Http\Controllers\ProfileController;
 use Illuminate\Support\Facades\Storage;
 
 // --- Routes Publiques ---
@@ -44,6 +45,11 @@ Route::get('/', function () {
 Route::middleware(['auth'])->group(function () {
 
     Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
+
+    // Profil
+    Route::get('/profile', [ProfileController::class, 'show'])->name('profile.show');
+    Route::put('/profile', [ProfileController::class, 'update'])->name('profile.update');
+    Route::put('/profile/password', [ProfileController::class, 'updatePassword'])->name('profile.password');
 
     // Gestion des documents
     Route::get('/documents', [DocumentController::class, 'index'])->name('documents.index');
@@ -87,4 +93,8 @@ Route::middleware(['auth'])->group(function () {
     
     // Route de déconnexion
     Route::post('/logout', [AuthController::class, 'logout'])->name('logout');
+
+    // API interne (appelée en AJAX depuis les vues)
+    Route::get('/api/documents/search', [DocumentController::class, 'apiSearch'])->name('documents.api.search');
+    Route::get('/api/documents/{document}', [DocumentController::class, 'apiShow'])->name('documents.api.show');
 });

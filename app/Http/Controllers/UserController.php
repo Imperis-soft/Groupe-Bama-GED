@@ -13,33 +13,19 @@ class UserController extends Controller
     // Afficher la liste des utilisateurs
     public function index()
     {
-        $users = User::orderBy('full_name')->paginate(20);
+        $users = User::with('roles')->orderBy('full_name')->paginate(20);
         return view('users.index', compact('users'));
     }
 
     // Afficher le formulaire de création d'un utilisateur
-
     public function create()
     {
-        $auth = auth()->user();
-        $allowed = ['admin@bama.com', 'contact@imperis.com'];
-        if (! $auth || ! in_array($auth->email, $allowed)) {
-            abort(403);
-        }
-
         return view('users.create');
     }
 
     // Stocker un nouvel utilisateur
-
     public function store(Request $request)
     {
-        $auth = auth()->user();
-        $allowed = ['admin@bama.com', 'contact@imperis.com'];
-        if (! $auth || ! in_array($auth->email, $allowed)) {
-            abort(403);
-        }
-
         $data = $request->validate([
             'full_name' => 'required|string|max:255',
             'email' => 'required|email|unique:users,email',
@@ -62,25 +48,12 @@ class UserController extends Controller
     // Afficher le formulaire d'édition d'un utilisateur
     public function edit(User $user)
     {
-        $auth = auth()->user();
-        $allowed = ['admin@bama.com', 'contact@imperis.com'];
-        if (! $auth || ! in_array($auth->email, $allowed)) {
-            abort(403);
-        }
-
         return view('users.edit', compact('user'));
     }
 
     // Mettre à jour un utilisateur existant
     public function update(Request $request, User $user)
-    {
-        $auth = auth()->user();
-        $allowed = ['admin@bama.com', 'contact@imperis.com'];
-        if (! $auth || ! in_array($auth->email, $allowed)) {
-            abort(403);
-        }
-
-        $data = $request->validate([
+    {        $data = $request->validate([
             'full_name' => 'required|string|max:255',
             'email' => 'required|email|unique:users,email,' . $user->id,
             'phone' => 'nullable|string|max:50',
@@ -95,10 +68,9 @@ class UserController extends Controller
     // Supprimer un utilisateur
     public function destroy(User $user)
     {
-        $auth = auth()->user();
-        $allowed = ['admin@bama.com', 'contact@imperis.com'];
-        if (! $auth || ! in_array($auth->email, $allowed)) {
-            abort(403);
+        // Empêcher l'auto-suppression
+        if ($user->id === auth()->id()) {
+            return redirect()->route('users.index')->with('error', 'Vous ne pouvez pas supprimer votre propre compte.');
         }
 
         $user->delete();

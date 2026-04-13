@@ -289,6 +289,10 @@ class DocumentController extends Controller
     // Supprimer un document
     public function destroy(Document $document)
     {
+        if (!auth()->user()->hasRole('admin')) {
+            abort(403);
+        }
+
         // Delete from storage
         Storage::disk('s3')->delete($document->file_path);
 

@@ -1,217 +1,195 @@
 @extends('layouts.app')
 
-@section('title', 'Édition en ligne - ' . $document->title)
-
 @section('content')
-<div class="min-h-screen bg-gray-50">
-    <!-- Header -->
-    <div class="bg-white shadow-sm border-b border-gray-200">
-        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            <div class="flex justify-between items-center py-4">
-                <div class="flex items-center space-x-4">
-                    <a href="{{ route('documents.show', $document) }}" class="text-gray-400 hover:text-gray-600">
-                        <i class="fas fa-arrow-left"></i>
-                    </a>
-                    <div>
-                        <h1 class="text-xl font-bold text-gray-900">{{ $document->title }}</h1>
-                        <p class="text-xs text-gray-500">Réf: {{ $document->reference }} &bull; Version: {{ $document->version }}</p>
-                    </div>
-                </div>
+<div class="space-y-4" x-data="{ fullscreen: false }">
 
-                <div class="flex items-center space-x-3">
-                    <span id="autosave-indicator" class="hidden text-xs text-gray-500 flex items-center gap-1">
-                        <span class="w-2 h-2 bg-green-500 rounded-full animate-pulse inline-block"></span>
-                        Sauvegarde auto...
-                    </span>
-                    <span id="saved-indicator" class="hidden text-xs text-green-600 font-medium">
-                        <i class="fas fa-check mr-1"></i>Sauvegardé
-                    </span>
-                    <button id="saveBtn" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors">
-                        <i class="fas fa-save mr-2"></i>Sauvegarder
-                    </button>
-                </div>
-            </div>
+    {{-- HEADER --}}
+    <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+        <div class="flex items-center gap-2 text-xs text-slate-400 font-medium min-w-0">
+            <a href="{{ route('documents.index') }}" class="hover:text-orange-600 transition-colors shrink-0">Documents</a>
+            <i class="fa-solid fa-chevron-right text-[8px] shrink-0"></i>
+            <a href="{{ route('documents.show', $document) }}" class="hover:text-orange-600 transition-colors truncate max-w-[140px]">{{ $document->title }}</a>
+            <i class="fa-solid fa-chevron-right text-[8px] shrink-0"></i>
+            <span class="text-slate-600 font-bold shrink-0">Édition en ligne</span>
+        </div>
+        <div class="flex items-center gap-2 shrink-0">
+            <span id="autosave-indicator" class="hidden items-center gap-1.5 text-[10px] font-bold text-slate-400">
+                <span class="w-1.5 h-1.5 bg-amber-400 rounded-full animate-pulse inline-block"></span>
+                Sauvegarde...
+            </span>
+            <span id="saved-indicator" class="hidden items-center gap-1.5 text-[10px] font-bold text-green-600">
+                <i class="fa-solid fa-check text-[9px]"></i> Sauvegardé
+            </span>
+            <a href="{{ route('documents.show', $document) }}"
+               class="inline-flex items-center gap-2 bg-white border border-slate-200 hover:bg-slate-50 text-slate-600 text-xs font-bold px-3 py-2 rounded-xl shadow-sm transition-all">
+                <i class="fa-solid fa-arrow-left text-[10px]"></i>
+                <span class="hidden sm:inline">Retour</span>
+            </a>
+            <button id="saveBtn"
+                class="inline-flex items-center gap-2 bg-orange-600 hover:bg-orange-500 active:scale-95 text-white text-xs font-black uppercase tracking-widest px-4 py-2 rounded-xl shadow-lg shadow-orange-200 transition-all">
+                <i class="fa-solid fa-floppy-disk text-[10px]"></i>
+                <span>Sauvegarder</span>
+            </button>
         </div>
     </div>
 
-    <!-- Toolbar -->
-    <div class="bg-white border-b border-gray-200 sticky top-0 z-10">
-        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            <div class="flex flex-wrap items-center gap-1 py-2" id="toolbar">
-                <!-- Text style -->
-                <button data-action="bold" title="Gras (Ctrl+B)" class="toolbar-btn"><i class="fas fa-bold"></i></button>
-                <button data-action="italic" title="Italique (Ctrl+I)" class="toolbar-btn"><i class="fas fa-italic"></i></button>
-                <button data-action="underline" title="Souligné (Ctrl+U)" class="toolbar-btn"><i class="fas fa-underline"></i></button>
-                <button data-action="strike" title="Barré" class="toolbar-btn"><i class="fas fa-strikethrough"></i></button>
+    {{-- EDITOR CARD --}}
+    <div class="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden"
+         :class="fullscreen ? 'fixed inset-4 z-50 flex flex-col' : ''">
 
-                <div class="w-px h-6 bg-gray-200 mx-1"></div>
+        {{-- Doc info bar --}}
+        <div class="flex items-center justify-between px-4 py-3 bg-slate-50 border-b border-slate-100">
+            <div class="flex items-center gap-3 min-w-0">
+                <div class="w-8 h-8 rounded-lg bg-orange-100 flex items-center justify-center shrink-0">
+                    <i class="fa-solid fa-file-word text-orange-500 text-sm"></i>
+                </div>
+                <div class="min-w-0">
+                    <p class="text-xs font-black text-slate-800 truncate">{{ $document->title }}</p>
+                    <p class="text-[9px] text-slate-400 font-mono">{{ $document->reference }} · v{{ $document->version }}</p>
+                </div>
+            </div>
+            <div class="flex items-center gap-2 shrink-0">
+                @if($document->is_confidential)
+                <span class="px-2 py-0.5 bg-red-50 text-red-600 border border-red-100 rounded-lg text-[9px] font-black uppercase">
+                    <i class="fa-solid fa-lock mr-1"></i>Confidentiel
+                </span>
+                @endif
+                <button @click="fullscreen = !fullscreen"
+                    class="w-7 h-7 flex items-center justify-center rounded-lg text-slate-400 hover:bg-slate-200 hover:text-slate-600 transition-all">
+                    <i class="fa-solid text-xs" :class="fullscreen ? 'fa-compress' : 'fa-expand'"></i>
+                </button>
+            </div>
+        </div>
 
-                <!-- Headings -->
-                <button data-action="h1" title="Titre 1" class="toolbar-btn text-xs font-bold">H1</button>
-                <button data-action="h2" title="Titre 2" class="toolbar-btn text-xs font-bold">H2</button>
-                <button data-action="h3" title="Titre 3" class="toolbar-btn text-xs font-bold">H3</button>
-                <button data-action="paragraph" title="Paragraphe" class="toolbar-btn text-xs">¶</button>
-
-                <div class="w-px h-6 bg-gray-200 mx-1"></div>
-
-                <!-- Alignment -->
-                <button data-action="left" title="Aligner à gauche" class="toolbar-btn"><i class="fas fa-align-left"></i></button>
-                <button data-action="center" title="Centrer" class="toolbar-btn"><i class="fas fa-align-center"></i></button>
-                <button data-action="right" title="Aligner à droite" class="toolbar-btn"><i class="fas fa-align-right"></i></button>
-                <button data-action="justify" title="Justifier" class="toolbar-btn"><i class="fas fa-align-justify"></i></button>
-
-                <div class="w-px h-6 bg-gray-200 mx-1"></div>
-
-                <!-- Lists -->
-                <button data-action="bulletList" title="Liste à puces" class="toolbar-btn"><i class="fas fa-list-ul"></i></button>
-                <button data-action="orderedList" title="Liste numérotée" class="toolbar-btn"><i class="fas fa-list-ol"></i></button>
-
-                <div class="w-px h-6 bg-gray-200 mx-1"></div>
-
-                <!-- Extras -->
-                <button data-action="blockquote" title="Citation" class="toolbar-btn"><i class="fas fa-quote-right"></i></button>
-                <button data-action="code" title="Code inline" class="toolbar-btn"><i class="fas fa-code"></i></button>
-                <button data-action="hr" title="Séparateur" class="toolbar-btn text-xs">—</button>
-
-                <div class="w-px h-6 bg-gray-200 mx-1"></div>
-
-                <!-- History -->
-                <button data-action="undo" title="Annuler (Ctrl+Z)" class="toolbar-btn"><i class="fas fa-undo"></i></button>
-                <button data-action="redo" title="Rétablir (Ctrl+Y)" class="toolbar-btn"><i class="fas fa-redo"></i></button>
-
-                <div class="w-px h-6 bg-gray-200 mx-1"></div>
-
-                <!-- Font size -->
-                <select id="fontSize" title="Taille de police" class="text-xs border border-gray-200 rounded px-2 py-1 bg-white text-gray-700 focus:outline-none focus:ring-1 focus:ring-blue-500">
+        {{-- Toolbar --}}
+        <div class="border-b border-slate-100 bg-white px-3 py-2 overflow-x-auto" id="toolbar">
+            <div class="flex items-center gap-0.5 min-w-max">
+                <button data-action="bold"        title="Gras"       class="tbtn"><i class="fa-solid fa-bold"></i></button>
+                <button data-action="italic"      title="Italique"   class="tbtn"><i class="fa-solid fa-italic"></i></button>
+                <button data-action="underline"   title="Souligné"   class="tbtn"><i class="fa-solid fa-underline"></i></button>
+                <button data-action="strike"      title="Barré"      class="tbtn"><i class="fa-solid fa-strikethrough"></i></button>
+                <div class="w-px h-5 bg-slate-200 mx-1.5 shrink-0"></div>
+                <button data-action="h1"          title="Titre 1"    class="tbtn font-black text-[10px]">H1</button>
+                <button data-action="h2"          title="Titre 2"    class="tbtn font-black text-[10px]">H2</button>
+                <button data-action="h3"          title="Titre 3"    class="tbtn font-black text-[10px]">H3</button>
+                <button data-action="paragraph"   title="Paragraphe" class="tbtn text-[11px]">¶</button>
+                <div class="w-px h-5 bg-slate-200 mx-1.5 shrink-0"></div>
+                <button data-action="left"        title="Gauche"     class="tbtn"><i class="fa-solid fa-align-left"></i></button>
+                <button data-action="center"      title="Centre"     class="tbtn"><i class="fa-solid fa-align-center"></i></button>
+                <button data-action="right"       title="Droite"     class="tbtn"><i class="fa-solid fa-align-right"></i></button>
+                <button data-action="justify"     title="Justifier"  class="tbtn"><i class="fa-solid fa-align-justify"></i></button>
+                <div class="w-px h-5 bg-slate-200 mx-1.5 shrink-0"></div>
+                <button data-action="bulletList"  title="Puces"      class="tbtn"><i class="fa-solid fa-list-ul"></i></button>
+                <button data-action="orderedList" title="Numérotée"  class="tbtn"><i class="fa-solid fa-list-ol"></i></button>
+                <div class="w-px h-5 bg-slate-200 mx-1.5 shrink-0"></div>
+                <button data-action="blockquote"  title="Citation"   class="tbtn"><i class="fa-solid fa-quote-right"></i></button>
+                <button data-action="code"        title="Code"       class="tbtn"><i class="fa-solid fa-code"></i></button>
+                <div class="w-px h-5 bg-slate-200 mx-1.5 shrink-0"></div>
+                <button data-action="undo"        title="Annuler"    class="tbtn"><i class="fa-solid fa-rotate-left"></i></button>
+                <button data-action="redo"        title="Rétablir"   class="tbtn"><i class="fa-solid fa-rotate-right"></i></button>
+                <div class="w-px h-5 bg-slate-200 mx-1.5 shrink-0"></div>
+                <select id="fontSize" class="text-[10px] font-bold border border-slate-200 rounded-lg px-2 py-1 bg-white text-slate-600 focus:outline-none focus:ring-2 focus:ring-orange-500 cursor-pointer">
                     <option value="">Taille</option>
-                    <option value="10">10pt</option>
-                    <option value="11">11pt</option>
-                    <option value="12">12pt</option>
-                    <option value="14">14pt</option>
-                    <option value="16">16pt</option>
-                    <option value="18">18pt</option>
-                    <option value="24">24pt</option>
-                    <option value="36">36pt</option>
+                    <option value="10">10pt</option><option value="11">11pt</option>
+                    <option value="12">12pt</option><option value="14">14pt</option>
+                    <option value="16">16pt</option><option value="18">18pt</option>
+                    <option value="24">24pt</option><option value="36">36pt</option>
                 </select>
-
-                <!-- Text color -->
-                <input type="color" id="textColor" title="Couleur du texte" value="#000000"
-                    class="w-7 h-7 rounded cursor-pointer border border-gray-200 p-0.5">
+                <div class="flex items-center gap-1 ml-1">
+                    <span class="text-[9px] text-slate-400 font-bold">A</span>
+                    <input type="color" id="textColor" value="#000000"
+                        class="w-6 h-6 rounded cursor-pointer border border-slate-200 p-0.5 bg-white">
+                </div>
             </div>
         </div>
-    </div>
 
-    <!-- Editor area -->
-    <div class="max-w-5xl mx-auto px-4 py-6">
-        <!-- Loading state -->
-        <div id="loadingState" class="bg-white rounded-xl shadow-sm border border-gray-200 p-12 text-center">
-            <div class="animate-spin rounded-full h-10 w-10 border-b-2 border-blue-600 mx-auto mb-4"></div>
-            <p class="text-gray-500 text-sm">Chargement du document...</p>
+        {{-- Loading --}}
+        <div id="loadingState" class="flex flex-col items-center justify-center py-20 text-center">
+            <div class="w-10 h-10 border-2 border-orange-200 border-t-orange-600 rounded-full animate-spin mb-4"></div>
+            <p class="text-sm font-bold text-slate-400">Chargement depuis MinIO...</p>
+            <p class="text-[10px] text-slate-300 mt-1">Conversion DOCX → HTML en cours</p>
         </div>
 
-        <!-- Editor -->
-        <div id="editorWrapper" class="hidden bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-            <!-- Document header preview -->
-            <div class="bg-orange-50 border-b border-orange-100 px-8 py-4">
-                <div class="flex items-center justify-between text-xs text-orange-700">
-                    <span class="font-bold">GROUPE BAMA — Système de Gestion Documentaire</span>
-                    <span>Réf: {{ $document->reference }} | v{{ $document->version }}</span>
+        {{-- Editor wrapper --}}
+        <div id="editorWrapper" class="hidden">
+            <div class="bg-orange-50 border-b border-orange-100 px-6 md:px-12 py-3">
+                <div class="flex items-center justify-between text-[10px] text-orange-700 font-bold">
+                    <span>GROUPE BAMA — Système de Gestion Documentaire</span>
+                    <span class="hidden sm:inline font-mono">{{ $document->reference }} | v{{ $document->version }}</span>
                 </div>
                 @if($document->is_confidential)
-                <div class="mt-1 text-center text-xs font-bold text-red-600">CONFIDENTIEL — ACCÈS RESTREINT</div>
+                <p class="text-center text-[10px] font-black text-red-600 mt-1 uppercase tracking-widest">⚠ Confidentiel — Accès restreint</p>
                 @endif
             </div>
-
-            <!-- TipTap editor mount point -->
-            <div id="editor" class="min-h-[600px] px-12 py-8 focus:outline-none prose prose-sm max-w-none"></div>
+            <div id="editor" style="min-height:520px; padding: 2rem 4rem; font-family: Arial, sans-serif; font-size: 11pt; line-height: 1.7;"></div>
         </div>
 
-        <!-- Error state -->
-        <div id="errorState" class="hidden bg-white rounded-xl shadow-sm border border-red-200 p-8 text-center">
-            <i class="fas fa-exclamation-triangle text-red-400 text-3xl mb-3"></i>
-            <p class="text-red-600 font-medium mb-2">Impossible de charger le document</p>
-            <p id="errorMsg" class="text-gray-500 text-sm mb-4"></p>
-            <button onclick="loadDocument()" class="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm">Réessayer</button>
+        {{-- Error --}}
+        <div id="errorState" class="hidden flex flex-col items-center justify-center py-16 text-center px-6">
+            <div class="w-12 h-12 rounded-2xl bg-red-50 flex items-center justify-center mb-4">
+                <i class="fa-solid fa-triangle-exclamation text-red-400 text-xl"></i>
+            </div>
+            <p class="text-sm font-black text-slate-700 mb-1">Impossible de charger le document</p>
+            <p id="errorMsg" class="text-xs text-slate-400 mb-4 max-w-sm"></p>
+            <button onclick="loadDocument()"
+                class="inline-flex items-center gap-2 bg-orange-600 text-white text-xs font-black uppercase tracking-widest px-5 py-2.5 rounded-xl shadow-lg shadow-orange-200 hover:bg-orange-500 transition-all">
+                <i class="fa-solid fa-rotate-right text-[10px]"></i> Réessayer
+            </button>
         </div>
+
     </div>
 </div>
 
-<!-- Toast notification -->
-<div id="toast" class="fixed bottom-6 right-6 z-50 hidden">
-    <div class="bg-gray-900 text-white px-4 py-3 rounded-lg shadow-lg text-sm flex items-center gap-2">
-        <i id="toastIcon" class="fas fa-check text-green-400"></i>
+{{-- Toast --}}
+<div id="toast" class="fixed bottom-5 right-5 z-[200] hidden">
+    <div class="flex items-center gap-3 bg-slate-900 text-white px-4 py-3 rounded-2xl shadow-xl text-xs font-semibold">
+        <div id="toastIconWrap" class="w-6 h-6 rounded-full flex items-center justify-center shrink-0 bg-green-500/20">
+            <i id="toastIcon" class="fa-solid fa-check text-green-400 text-[10px]"></i>
+        </div>
         <span id="toastMsg"></span>
     </div>
 </div>
-@endsection
 
-@section('scripts')
-<!-- Mammoth for DOCX → HTML -->
+<link href="https://cdn.quilljs.com/1.3.7/quill.snow.css" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/mammoth@1.4.21/mammoth.browser.min.js"></script>
-<!-- TipTap via CDN (UMD build) -->
-<script src="https://cdn.jsdelivr.net/npm/@tiptap/core@2.11.5/dist/index.umd.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/@tiptap/starter-kit@2.11.5/dist/index.umd.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/@tiptap/extension-text-align@2.11.5/dist/index.umd.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/@tiptap/extension-underline@2.11.5/dist/index.umd.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/@tiptap/extension-color@2.11.5/dist/index.umd.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/@tiptap/extension-text-style@2.11.5/dist/index.umd.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/@tiptap/extension-font-size@2.11.5/dist/index.umd.min.js"></script>
+<script src="https://cdn.quilljs.com/1.3.7/quill.min.js"></script>
 
 <script>
 const SAVE_URL = '{{ route('documents.save-online', $document) }}';
-const CSRF    = '{{ csrf_token() }}';
-const DOC_URL = '{{ route('documents.stream', $document) }}';
+const CSRF     = '{{ csrf_token() }}';
+const DOC_URL  = '{{ route('documents.stream', $document) }}';
 
-let editor = null;
-let isDirty = false;
+let quill        = null;
+let isDirty      = false;
 let autoSaveTimer = null;
 
-// ── Init TipTap ──────────────────────────────────────────────────────────────
-function initEditor(initialHtml) {
-    const { Editor } = window['@tiptap/core'];
-    const StarterKit = window['@tiptap/starter-kit'].StarterKit;
-    const TextAlign  = window['@tiptap/extension-text-align'].TextAlign;
-    const Underline  = window['@tiptap/extension-underline'].Underline;
-    const Color      = window['@tiptap/extension-color'].Color;
-    const TextStyle  = window['@tiptap/extension-text-style'].TextStyle;
-    const FontSize   = window['@tiptap/extension-font-size']?.FontSize;
-
-    const extensions = [
-        StarterKit,
-        TextAlign.configure({ types: ['heading', 'paragraph'] }),
-        Underline,
-        TextStyle,
-        Color,
-    ];
-    if (FontSize) extensions.push(FontSize);
-
-    editor = new Editor({
-        element: document.getElementById('editor'),
-        extensions,
-        content: initialHtml || '<p>Commencez à rédiger votre document...</p>',
-        onUpdate: () => {
-            isDirty = true;
-            scheduleAutoSave();
-            updateToolbar();
-        },
-        onSelectionUpdate: updateToolbar,
+function initEditor(html) {
+    quill = new Quill('#editor', {
+        theme: 'snow',
+        modules: { toolbar: false, history: { delay: 1000, maxStack: 100 } },
+        placeholder: 'Commencez à rédiger...',
     });
+
+    if (html) {
+        const delta = quill.clipboard.convert(html);
+        quill.setContents(delta, 'silent');
+    }
+
+    quill.on('text-change', () => { isDirty = true; scheduleAutoSave(); updateToolbar(); });
+    quill.on('selection-change', updateToolbar);
 
     document.getElementById('loadingState').classList.add('hidden');
     document.getElementById('editorWrapper').classList.remove('hidden');
-    updateToolbar();
 }
 
-// ── Load document from MinIO ─────────────────────────────────────────────────
 async function loadDocument() {
     document.getElementById('loadingState').classList.remove('hidden');
     document.getElementById('editorWrapper').classList.add('hidden');
     document.getElementById('errorState').classList.add('hidden');
-
     try {
         const res = await fetch(DOC_URL);
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        const buf = await res.arrayBuffer();
+        if (!res.ok) throw new Error('HTTP ' + res.status + ' — vérifiez MinIO');
+        const buf    = await res.arrayBuffer();
         const result = await mammoth.convertToHtml({ arrayBuffer: buf });
         initEditor(result.value);
     } catch (err) {
@@ -221,189 +199,149 @@ async function loadDocument() {
     }
 }
 
-// ── Save ─────────────────────────────────────────────────────────────────────
 async function saveDocument() {
-    if (!editor) return;
-
+    if (!quill) return;
     const btn = document.getElementById('saveBtn');
     btn.disabled = true;
-    btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>Sauvegarde...';
-
+    btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin text-[10px]"></i><span>Sauvegarde...</span>';
     try {
         const res = await fetch(SAVE_URL, {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'X-CSRF-TOKEN': CSRF,
-                'Accept': 'application/json',
-            },
-            body: JSON.stringify({ content: editor.getHTML() }),
+            headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': CSRF, 'Accept': 'application/json' },
+            body: JSON.stringify({ content: quill.root.innerHTML }),
         });
-
         const data = await res.json();
         if (!res.ok || data.error) throw new Error(data.error || 'Erreur serveur');
-
         isDirty = false;
         showToast('Document sauvegardé', 'success');
         showSavedIndicator();
     } catch (err) {
-        showToast('Erreur: ' + err.message, 'error');
+        showToast('Erreur : ' + err.message, 'error');
     } finally {
         btn.disabled = false;
-        btn.innerHTML = '<i class="fas fa-save mr-2"></i>Sauvegarder';
+        btn.innerHTML = '<i class="fa-solid fa-floppy-disk text-[10px]"></i><span>Sauvegarder</span>';
     }
 }
 
-// ── Auto-save ────────────────────────────────────────────────────────────────
 function scheduleAutoSave() {
     clearTimeout(autoSaveTimer);
     autoSaveTimer = setTimeout(() => {
-        if (isDirty) {
-            document.getElementById('autosave-indicator').classList.remove('hidden');
-            saveDocument().finally(() => {
-                document.getElementById('autosave-indicator').classList.add('hidden');
-            });
-        }
+        if (!isDirty) return;
+        const ind = document.getElementById('autosave-indicator');
+        ind.classList.remove('hidden'); ind.classList.add('flex');
+        saveDocument().finally(() => { ind.classList.add('hidden'); ind.classList.remove('flex'); });
     }, 30000);
 }
 
-// ── Toolbar actions ──────────────────────────────────────────────────────────
 document.getElementById('toolbar').addEventListener('click', e => {
     const btn = e.target.closest('[data-action]');
-    if (!btn || !editor) return;
+    if (!btn || !quill) return;
     e.preventDefault();
-
-    const action = btn.dataset.action;
-    const chain = editor.chain().focus();
-
-    switch (action) {
-        case 'bold':        chain.toggleBold().run(); break;
-        case 'italic':      chain.toggleItalic().run(); break;
-        case 'underline':   chain.toggleUnderline().run(); break;
-        case 'strike':      chain.toggleStrike().run(); break;
-        case 'h1':          chain.toggleHeading({ level: 1 }).run(); break;
-        case 'h2':          chain.toggleHeading({ level: 2 }).run(); break;
-        case 'h3':          chain.toggleHeading({ level: 3 }).run(); break;
-        case 'paragraph':   chain.setParagraph().run(); break;
-        case 'left':        chain.setTextAlign('left').run(); break;
-        case 'center':      chain.setTextAlign('center').run(); break;
-        case 'right':       chain.setTextAlign('right').run(); break;
-        case 'justify':     chain.setTextAlign('justify').run(); break;
-        case 'bulletList':  chain.toggleBulletList().run(); break;
-        case 'orderedList': chain.toggleOrderedList().run(); break;
-        case 'blockquote':  chain.toggleBlockquote().run(); break;
-        case 'code':        chain.toggleCode().run(); break;
-        case 'hr':          chain.setHorizontalRule().run(); break;
-        case 'undo':        chain.undo().run(); break;
-        case 'redo':        chain.redo().run(); break;
-    }
+    const a   = btn.dataset.action;
+    const fmt = quill.getFormat();
+    if      (a === 'bold')        quill.format('bold',       !fmt.bold);
+    else if (a === 'italic')      quill.format('italic',     !fmt.italic);
+    else if (a === 'underline')   quill.format('underline',  !fmt.underline);
+    else if (a === 'strike')      quill.format('strike',     !fmt.strike);
+    else if (a === 'h1')          quill.format('header', fmt.header === 1 ? false : 1);
+    else if (a === 'h2')          quill.format('header', fmt.header === 2 ? false : 2);
+    else if (a === 'h3')          quill.format('header', fmt.header === 3 ? false : 3);
+    else if (a === 'paragraph')   quill.format('header', false);
+    else if (a === 'left')        quill.format('align', false);
+    else if (a === 'center')      quill.format('align', 'center');
+    else if (a === 'right')       quill.format('align', 'right');
+    else if (a === 'justify')     quill.format('align', 'justify');
+    else if (a === 'bulletList')  quill.format('list', fmt.list === 'bullet'  ? false : 'bullet');
+    else if (a === 'orderedList') quill.format('list', fmt.list === 'ordered' ? false : 'ordered');
+    else if (a === 'blockquote')  quill.format('blockquote', !fmt.blockquote);
+    else if (a === 'code')        quill.format('code',       !fmt.code);
+    else if (a === 'undo')        quill.history.undo();
+    else if (a === 'redo')        quill.history.redo();
     updateToolbar();
 });
 
-// Font size
 document.getElementById('fontSize').addEventListener('change', function () {
-    if (!editor || !this.value) return;
-    editor.chain().focus().setFontSize(this.value + 'pt').run();
+    if (!quill || !this.value) return;
+    quill.format('size', this.value + 'px');
     this.value = '';
 });
 
-// Text color
 document.getElementById('textColor').addEventListener('input', function () {
-    if (!editor) return;
-    editor.chain().focus().setColor(this.value).run();
+    if (!quill) return;
+    quill.format('color', this.value);
 });
 
-// Save button
 document.getElementById('saveBtn').addEventListener('click', saveDocument);
 
-// Keyboard shortcut Ctrl+S
 document.addEventListener('keydown', e => {
-    if ((e.ctrlKey || e.metaKey) && e.key === 's') {
-        e.preventDefault();
-        saveDocument();
-    }
+    if ((e.ctrlKey || e.metaKey) && e.key === 's') { e.preventDefault(); saveDocument(); }
 });
 
-// ── Toolbar state sync ───────────────────────────────────────────────────────
 function updateToolbar() {
-    if (!editor) return;
-    const map = {
-        bold: 'bold', italic: 'italic', underline: 'underline', strike: 'strike',
-        bulletList: 'bulletList', orderedList: 'orderedList', blockquote: 'blockquote', code: 'code',
-    };
+    if (!quill) return;
+    const fmt = quill.getFormat();
     document.querySelectorAll('[data-action]').forEach(btn => {
-        const action = btn.dataset.action;
-        const isActive =
-            map[action] ? editor.isActive(map[action]) :
-            action === 'h1' ? editor.isActive('heading', { level: 1 }) :
-            action === 'h2' ? editor.isActive('heading', { level: 2 }) :
-            action === 'h3' ? editor.isActive('heading', { level: 3 }) :
-            ['left','center','right','justify'].includes(action) ? editor.isActive({ textAlign: action }) :
-            false;
-
-        btn.classList.toggle('toolbar-active', isActive);
+        const a = btn.dataset.action;
+        const on =
+            a === 'bold'        ? !!fmt.bold :
+            a === 'italic'      ? !!fmt.italic :
+            a === 'underline'   ? !!fmt.underline :
+            a === 'strike'      ? !!fmt.strike :
+            a === 'h1'          ? fmt.header === 1 :
+            a === 'h2'          ? fmt.header === 2 :
+            a === 'h3'          ? fmt.header === 3 :
+            a === 'left'        ? !fmt.align :
+            a === 'center'      ? fmt.align === 'center' :
+            a === 'right'       ? fmt.align === 'right' :
+            a === 'justify'     ? fmt.align === 'justify' :
+            a === 'bulletList'  ? fmt.list === 'bullet' :
+            a === 'orderedList' ? fmt.list === 'ordered' :
+            a === 'blockquote'  ? !!fmt.blockquote : false;
+        btn.classList.toggle('tbtn-active', on);
     });
 }
 
-// ── UI helpers ───────────────────────────────────────────────────────────────
-function showToast(msg, type = 'success') {
-    const toast = document.getElementById('toast');
-    const icon  = document.getElementById('toastIcon');
+function showToast(msg, type) {
+    const wrap = document.getElementById('toastIconWrap');
+    const icon = document.getElementById('toastIcon');
     document.getElementById('toastMsg').textContent = msg;
-    icon.className = type === 'success' ? 'fas fa-check text-green-400' : 'fas fa-times text-red-400';
-    toast.classList.remove('hidden');
-    setTimeout(() => toast.classList.add('hidden'), 3000);
+    wrap.className = 'w-6 h-6 rounded-full flex items-center justify-center shrink-0 ' + (type === 'success' ? 'bg-green-500/20' : 'bg-red-500/20');
+    icon.className = 'fa-solid text-[10px] ' + (type === 'success' ? 'fa-check text-green-400' : 'fa-xmark text-red-400');
+    const t = document.getElementById('toast');
+    t.classList.remove('hidden');
+    setTimeout(() => t.classList.add('hidden'), 3500);
 }
 
 function showSavedIndicator() {
     const el = document.getElementById('saved-indicator');
-    el.classList.remove('hidden');
-    setTimeout(() => el.classList.add('hidden'), 3000);
+    el.classList.remove('hidden'); el.classList.add('flex');
+    setTimeout(() => { el.classList.add('hidden'); el.classList.remove('flex'); }, 3000);
 }
 
-// Warn on unsaved changes
-window.addEventListener('beforeunload', e => {
-    if (isDirty) { e.preventDefault(); e.returnValue = ''; }
-});
+window.addEventListener('beforeunload', e => { if (isDirty) { e.preventDefault(); e.returnValue = ''; } });
 
-// Boot
 loadDocument();
 </script>
 
 <style>
-.toolbar-btn {
-    padding: 0.375rem 0.625rem;
-    border-radius: 0.375rem;
-    color: #4b5563;
-    font-size: 0.8rem;
-    transition: background 0.15s, color 0.15s;
-    border: none;
-    background: transparent;
-    cursor: pointer;
-    line-height: 1;
+.tbtn {
+    display: inline-flex; align-items: center; justify-content: center;
+    min-width: 28px; height: 28px; padding: 0 6px; border-radius: 8px;
+    color: #64748b; font-size: 11px; border: none; background: transparent;
+    cursor: pointer; transition: background .12s, color .12s; white-space: nowrap;
 }
-.toolbar-btn:hover { background: #f3f4f6; color: #111827; }
-.toolbar-btn.toolbar-active { background: #dbeafe; color: #1d4ed8; }
+.tbtn:hover    { background: #f1f5f9; color: #0f172a; }
+.tbtn-active   { background: #fff7ed !important; color: #ea580c !important; }
 
-/* TipTap editor styles */
-#editor { font-family: Arial, sans-serif; font-size: 11pt; line-height: 1.6; color: #1a1a1a; }
-#editor:focus { outline: none; }
-#editor .ProseMirror { min-height: 560px; outline: none; }
-#editor .ProseMirror p { margin-bottom: 0.75em; }
-#editor .ProseMirror h1 { font-size: 1.8em; font-weight: 700; margin-bottom: 0.5em; }
-#editor .ProseMirror h2 { font-size: 1.4em; font-weight: 700; margin-bottom: 0.5em; }
-#editor .ProseMirror h3 { font-size: 1.2em; font-weight: 600; margin-bottom: 0.5em; }
-#editor .ProseMirror ul { list-style: disc; padding-left: 1.5em; margin-bottom: 0.75em; }
-#editor .ProseMirror ol { list-style: decimal; padding-left: 1.5em; margin-bottom: 0.75em; }
-#editor .ProseMirror blockquote { border-left: 3px solid #e5e7eb; padding-left: 1em; color: #6b7280; margin: 1em 0; }
-#editor .ProseMirror code { background: #f3f4f6; padding: 0.1em 0.3em; border-radius: 3px; font-family: monospace; font-size: 0.9em; }
-#editor .ProseMirror hr { border: none; border-top: 2px solid #e5e7eb; margin: 1.5em 0; }
-#editor .ProseMirror p.is-editor-empty:first-child::before {
-    content: attr(data-placeholder);
-    color: #9ca3af;
-    pointer-events: none;
-    float: left;
-    height: 0;
-}
+/* Quill overrides */
+#editor .ql-container { border: none !important; }
+#editor .ql-editor    { padding: 0; min-height: 480px; font-family: Arial, sans-serif; font-size: 11pt; line-height: 1.7; color: #1a1a1a; }
+#editor .ql-editor:focus { outline: none; }
+#editor .ql-editor h1 { font-size: 1.8em; font-weight: 800; }
+#editor .ql-editor h2 { font-size: 1.4em; font-weight: 700; }
+#editor .ql-editor h3 { font-size: 1.15em; font-weight: 700; }
+#editor .ql-editor blockquote { border-left: 3px solid #e2e8f0; padding-left: 1em; color: #64748b; font-style: italic; margin: 1em 0; }
+#editor .ql-editor pre  { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; padding: .75em 1em; font-family: monospace; }
+#editor .ql-editor.ql-blank::before { color: #cbd5e1; font-style: normal; }
 </style>
 @endsection
