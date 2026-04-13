@@ -8,7 +8,8 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 use PhpOffice\PhpWord\PhpWord;
 use PhpOffice\PhpWord\IOFactory;
-use SimpleSoftwareIO\QrCode\Facades\QrCode;
+use Endroid\QrCode\QrCode as EndroidQrCode;
+use Endroid\QrCode\Writer\PngWriter;
 use Illuminate\Support\Str;
 use App\Services\DocumentArchivalService;
 use Exception;
@@ -128,9 +129,11 @@ class DocumentController extends Controller
 
             // Générer le QR code pour le pied de page
             $verificationUrl = rtrim(config('app.url'), '/') . '/verify/' . $verificationCode;
-            $qrCodeData = QrCode::format('png')->size(100)->generate($verificationUrl);
+            $qrCode = EndroidQrCode::create($verificationUrl)->setSize(100);
+            $qrWriter = new PngWriter();
+            $qrResult = $qrWriter->write($qrCode);
             $qrImagePath = tempnam(sys_get_temp_dir(), 'qr_') . '.png';
-            file_put_contents($qrImagePath, $qrCodeData);
+            file_put_contents($qrImagePath, $qrResult->getString());
 
             // Centrer le QR code dans le pied de page
             $footer->addImage($qrImagePath, ['width' => 30, 'height' => 30, 'alignment' => 'center']);
@@ -421,9 +424,11 @@ class DocumentController extends Controller
             $verification = $document->verification;
             if ($verification) {
                 $footer = $section->addFooter();
-                $qrCodeData = QrCode::format('png')->size(100)->generate(rtrim(config('app.url'), '/') . '/verify/' . $verification->verification_code);
+                $qrCode = EndroidQrCode::create(rtrim(config('app.url'), '/') . '/verify/' . $verification->verification_code)->setSize(100);
+                $qrWriter = new PngWriter();
+                $qrResult = $qrWriter->write($qrCode);
                 $qrImagePath = tempnam(sys_get_temp_dir(), 'qr_') . '.png';
-                file_put_contents($qrImagePath, $qrCodeData);
+                file_put_contents($qrImagePath, $qrResult->getString());
                 $footer->addImage($qrImagePath, ['width' => 30, 'height' => 30, 'alignment' => 'center']);
                 @unlink($qrImagePath);
             }

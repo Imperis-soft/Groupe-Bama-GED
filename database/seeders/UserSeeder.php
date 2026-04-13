@@ -17,7 +17,7 @@ class UserSeeder extends Seeder
         'email' => 'admin@bama.com',
         'phone' => '+22300000000',
         'address' => 'Bamako, Mali',
-        'password' => bcrypt('password123'),
+        'password' => bcrypt('AdminBama01'),
     ]);
 }
 }
