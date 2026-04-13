@@ -13,10 +13,12 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware): void {
-        //
+        // Faire confiance au proxy Caddy (HTTPS → HTTP)
+        $middleware->trustProxies(at: '*');
+
         $middleware->validateCsrfTokens(except: [
-        '/webdav/*',
-    ]);
+            '/webdav/*',
+        ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         //

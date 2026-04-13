@@ -17,8 +17,6 @@
                 <i class="fa-solid fa-magnifying-glass text-[10px]"></i>
                 <span class="hidden sm:inline">Recherche avancée</span>
             </a>
-
-            {{-- Toggle vue --}}
             <div class="flex bg-slate-100 p-1 rounded-xl border border-slate-200 gap-0.5">
                 <button @click="viewMode = 'list'"
                     :class="viewMode === 'list' ? 'bg-white shadow text-orange-600' : 'text-slate-400 hover:text-slate-600'"
@@ -31,7 +29,12 @@
                     <i class="fa-solid fa-grip"></i>
                 </button>
             </div>
-
+            {{-- Upload fichier existant --}}
+            <button @click="uploadModal = true"
+                class="inline-flex items-center gap-2 bg-white border border-slate-200 hover:bg-slate-50 text-slate-600 text-xs font-bold px-4 py-2.5 rounded-xl transition-all shadow-sm">
+                <i class="fa-solid fa-cloud-arrow-up text-[10px]"></i>
+                <span class="hidden sm:inline">Importer</span>
+            </button>
             <button @click="openModal = true"
                 class="inline-flex items-center gap-2 bg-orange-600 hover:bg-orange-500 active:scale-95 text-white text-xs font-black uppercase tracking-widest px-5 py-2.5 rounded-xl shadow-lg shadow-orange-200 transition-all">
                 <i class="fa-solid fa-plus text-[10px]"></i> Nouveau
@@ -76,10 +79,56 @@
     <div x-show="viewMode === 'list'">
         <div class="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
 
+            {{-- Barre bulk (visible si sélection) --}}
+            <div x-show="selected.length > 0"
+                 x-transition
+                 class="flex items-center gap-3 px-5 py-3 bg-orange-50 border-b border-orange-100">
+                <span class="text-xs font-black text-orange-700">
+                    <span x-text="selected.length"></span> sélectionné(s)
+                </span>
+                <div class="flex items-center gap-2 ml-2 flex-wrap">
+                    <form :action="'{{ route('documents.bulk') }}'" method="POST" @submit.prevent="submitBulk('archive')">
+                        @csrf
+                        <button type="submit" class="inline-flex items-center gap-1.5 bg-amber-100 hover:bg-amber-200 text-amber-700 text-[10px] font-black uppercase px-3 py-1.5 rounded-lg transition-all">
+                            <i class="fa-solid fa-box-archive text-[9px]"></i> Archiver
+                        </button>
+                    </form>
+                    @if(auth()->user()->hasRole('admin'))
+                    <button @click="submitBulk('approve')" class="inline-flex items-center gap-1.5 bg-green-100 hover:bg-green-200 text-green-700 text-[10px] font-black uppercase px-3 py-1.5 rounded-lg transition-all">
+                        <i class="fa-solid fa-check text-[9px]"></i> Approuver
+                    </button>
+                    <div x-data="{ catOpen: false }" class="relative">
+                        <button @click="catOpen = !catOpen" class="inline-flex items-center gap-1.5 bg-blue-100 hover:bg-blue-200 text-blue-700 text-[10px] font-black uppercase px-3 py-1.5 rounded-lg transition-all">
+                            <i class="fa-solid fa-folder text-[9px]"></i> Déplacer
+                        </button>
+                        <div x-show="catOpen" @click.outside="catOpen=false" class="absolute top-full mt-1 left-0 bg-white border border-slate-100 rounded-xl shadow-xl z-50 min-w-[160px] py-1">
+                            @foreach(\App\Models\Category::orderBy('name')->get() as $cat)
+                            <button @click="submitBulk('move_category', {{ $cat->id }}); catOpen=false"
+                                class="w-full text-left px-4 py-2 text-xs font-medium text-slate-700 hover:bg-orange-50 hover:text-orange-600 transition-colors">
+                                {{ $cat->name }}
+                            </button>
+                            @endforeach
+                        </div>
+                    </div>
+                    <button @click="submitBulk('delete')" class="inline-flex items-center gap-1.5 bg-red-100 hover:bg-red-200 text-red-700 text-[10px] font-black uppercase px-3 py-1.5 rounded-lg transition-all">
+                        <i class="fa-solid fa-trash text-[9px]"></i> Supprimer
+                    </button>
+                    @endif
+                </div>
+                <button @click="selected = []" class="ml-auto text-[9px] text-slate-400 hover:text-slate-600 font-bold">
+                    Désélectionner tout
+                </button>
+            </div>
+
             {{-- Header table --}}
             <div class="hidden md:grid grid-cols-12 gap-4 px-6 py-3 bg-slate-50 border-b border-slate-100">
+                <div class="col-span-1 flex items-center">
+                    <input type="checkbox" @change="toggleAll($event)"
+                           :checked="selected.length === {{ $documents->count() }} && {{ $documents->count() }} > 0"
+                           class="w-4 h-4 text-orange-600 rounded border-slate-300 focus:ring-orange-500 cursor-pointer">
+                </div>
                 <div class="col-span-2 text-[9px] font-black text-slate-400 uppercase tracking-widest">Référence</div>
-                <div class="col-span-4 text-[9px] font-black text-slate-400 uppercase tracking-widest">Titre</div>
+                <div class="col-span-3 text-[9px] font-black text-slate-400 uppercase tracking-widest">Titre</div>
                 <div class="col-span-2 text-[9px] font-black text-slate-400 uppercase tracking-widest">Catégorie</div>
                 <div class="col-span-2 text-[9px] font-black text-slate-400 uppercase tracking-widest">Statut</div>
                 <div class="col-span-2 text-[9px] font-black text-slate-400 uppercase tracking-widest text-right">Actions</div>
@@ -91,12 +140,16 @@
 
                     {{-- Desktop --}}
                     <div class="hidden md:grid grid-cols-12 gap-4 items-center">
+                        <div class="col-span-1">
+                            <input type="checkbox" :value="{{ $doc->id }}" x-model="selected"
+                                   class="w-4 h-4 text-orange-600 rounded border-slate-300 focus:ring-orange-500 cursor-pointer">
+                        </div>
                         <div class="col-span-2">
                             <span class="font-mono text-[10px] font-bold text-slate-400 bg-slate-100 px-2 py-1 rounded-lg">
                                 {{ $doc->reference }}
                             </span>
                         </div>
-                        <div class="col-span-4 flex items-center gap-3 min-w-0">
+                        <div class="col-span-3 flex items-center gap-3 min-w-0">
                             <div class="w-8 h-8 rounded-lg bg-orange-50 flex items-center justify-center shrink-0 group-hover:bg-orange-600 transition-colors">
                                 <i class="fa-solid fa-file-word text-orange-500 text-xs group-hover:text-white transition-colors"></i>
                             </div>
@@ -262,7 +315,90 @@
         @endif
     </div>
 
-    {{-- ===== MODAL CRÉATION ===== --}}
+    {{-- ===== MODAL UPLOAD FICHIER EXISTANT ===== --}}
+    <div x-show="uploadModal" x-cloak
+         class="fixed inset-0 z-[100] flex items-end sm:items-center justify-center p-0 sm:p-4">
+        <div @click="uploadModal = false"
+             x-transition:enter="transition ease-out duration-200" x-transition:enter-start="opacity-0" x-transition:enter-end="opacity-100"
+             x-transition:leave="transition ease-in duration-150" x-transition:leave-start="opacity-100" x-transition:leave-end="opacity-0"
+             class="absolute inset-0 bg-slate-900/50 backdrop-blur-sm"></div>
+        <div @click.stop
+             x-transition:enter="transition ease-out duration-200" x-transition:enter-start="opacity-0 translate-y-4 sm:scale-95" x-transition:enter-end="opacity-100 translate-y-0 sm:scale-100"
+             class="relative bg-white w-full sm:max-w-md rounded-t-3xl sm:rounded-3xl shadow-2xl overflow-hidden">
+            <div class="sticky top-0 bg-white border-b border-slate-100 px-6 py-4 flex items-center justify-between">
+                <div>
+                    <h2 class="text-base font-black text-slate-900">Importer un document</h2>
+                    <p class="text-[10px] text-slate-400 mt-0.5">Importez un fichier Word existant</p>
+                </div>
+                <button @click="uploadModal = false" class="w-8 h-8 flex items-center justify-center rounded-xl bg-slate-100 text-slate-500 hover:bg-slate-200 transition-colors">
+                    <i class="fa-solid fa-xmark text-sm"></i>
+                </button>
+            </div>
+            <form action="{{ route('documents.store') }}" method="POST" enctype="multipart/form-data" class="p-6 space-y-4">
+                @csrf
+                <input type="hidden" name="import_mode" value="1">
+                <div>
+                    <label class="block text-[9px] font-black text-slate-500 uppercase tracking-widest mb-1.5">Titre <span class="text-red-500">*</span></label>
+                    <input type="text" name="title" required placeholder="Titre du document"
+                           class="w-full bg-slate-50 border border-slate-100 rounded-xl px-4 py-2.5 text-sm font-medium text-slate-800 placeholder-slate-300 focus:outline-none focus:ring-2 focus:ring-orange-500 transition-all">
+                </div>
+                <div>
+                    <label class="block text-[9px] font-black text-slate-500 uppercase tracking-widest mb-1.5">Fichier Word (.docx) <span class="text-red-500">*</span></label>
+                    <div class="border-2 border-dashed border-slate-200 rounded-xl p-6 text-center hover:border-orange-300 transition-colors cursor-pointer"
+                         x-data="{ fname: '' }"
+                         @click="$refs.importFile.click()"
+                         @dragover.prevent
+                         @drop.prevent="fname = $event.dataTransfer.files[0]?.name; $refs.importFile.files = $event.dataTransfer.files">
+                        <input type="file" name="import_file" accept=".docx,.doc" x-ref="importFile"
+                               @change="fname = $event.target.files[0]?.name" class="hidden">
+                        <div x-show="!fname">
+                            <i class="fa-solid fa-cloud-arrow-up text-slate-300 text-2xl mb-2"></i>
+                            <p class="text-xs font-bold text-slate-400">Glisser-déposer ou cliquer</p>
+                            <p class="text-[9px] text-slate-300 mt-1">.docx, .doc — max 50MB</p>
+                        </div>
+                        <div x-show="fname" class="flex items-center justify-center gap-2">
+                            <i class="fa-solid fa-file-word text-orange-500 text-lg"></i>
+                            <span class="text-sm font-bold text-slate-700" x-text="fname"></span>
+                        </div>
+                    </div>
+                </div>
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="block text-[9px] font-black text-slate-500 uppercase tracking-widest mb-1.5">Catégorie</label>
+                        <select name="category_id" class="w-full bg-slate-50 border border-slate-100 rounded-xl px-3 py-2.5 text-xs font-medium text-slate-700 focus:outline-none focus:ring-2 focus:ring-orange-500">
+                            <option value="">Sans catégorie</option>
+                            @foreach($categories as $cat)
+                            <option value="{{ $cat->id }}">{{ $cat->name }}</option>
+                            @endforeach
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-[9px] font-black text-slate-500 uppercase tracking-widest mb-1.5">Statut</label>
+                        <select name="status" class="w-full bg-slate-50 border border-slate-100 rounded-xl px-3 py-2.5 text-xs font-medium text-slate-700 focus:outline-none focus:ring-2 focus:ring-orange-500">
+                            <option value="draft">Brouillon</option>
+                            <option value="review">En révision</option>
+                            <option value="approved">Approuvé</option>
+                        </select>
+                    </div>
+                </div>
+                <input type="hidden" name="retention_years" value="5">
+                <div class="flex gap-3 pt-1">
+                    <button type="button" @click="uploadModal = false" class="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-600 py-3 rounded-xl font-bold text-xs uppercase tracking-wider transition-all">Annuler</button>
+                    <button type="submit" class="flex-1 bg-orange-600 hover:bg-orange-500 active:scale-95 text-white py-3 rounded-xl font-black text-xs uppercase tracking-widest shadow-lg shadow-orange-200 transition-all">
+                        <i class="fa-solid fa-cloud-arrow-up mr-1.5"></i> Importer
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    {{-- BULK FORM caché --}}
+    <form id="bulk-form" action="{{ route('documents.bulk') }}" method="POST" class="hidden">
+        @csrf
+        <input type="hidden" name="action" id="bulk-action">
+        <input type="hidden" name="category_id" id="bulk-category">
+        <div id="bulk-ids"></div>
+    </form>
     <div x-show="openModal" x-cloak
          class="fixed inset-0 z-[100] flex items-end sm:items-center justify-center p-0 sm:p-4">
         <div @click="openModal = false"
@@ -372,16 +508,48 @@
 <script>
 function documentIndex() {
     return {
-        openModal: {{ $errors->any() ? 'true' : 'false' }},
-        viewMode: localStorage.getItem('docViewMode') || 'list',
+        openModal:   {{ $errors->any() ? 'true' : 'false' }},
+        uploadModal: false,
+        viewMode:    localStorage.getItem('docViewMode') || 'list',
+        selected:    [],
+
         init() {
             this.$watch('viewMode', v => localStorage.setItem('docViewMode', v));
         },
+
+        toggleAll(e) {
+            if (e.target.checked) {
+                this.selected = [{{ $documents->pluck('id')->join(',') }}];
+            } else {
+                this.selected = [];
+            }
+        },
+
+        submitBulk(action, categoryId = null) {
+            if (!this.selected.length) return;
+            if (action === 'delete' && !confirm('Supprimer ' + this.selected.length + ' document(s) ?')) return;
+
+            document.getElementById('bulk-action').value   = action;
+            document.getElementById('bulk-category').value = categoryId || '';
+
+            const container = document.getElementById('bulk-ids');
+            container.innerHTML = '';
+            this.selected.forEach(id => {
+                const inp = document.createElement('input');
+                inp.type  = 'hidden';
+                inp.name  = 'document_ids[]';
+                inp.value = id;
+                container.appendChild(inp);
+            });
+
+            document.getElementById('bulk-form').submit();
+        },
+
         async previewDocument(documentId) {
             try {
                 const response = await fetch(`/api/documents/${documentId}`);
-                const docData = await response.json();
-                const modal = document.querySelector('[x-data="documentPreview()"]');
+                const docData  = await response.json();
+                const modal    = document.querySelector('[x-data="documentPreview()"]');
                 if (modal && modal._x_dataStack) {
                     modal._x_dataStack[0].document = docData;
                     modal._x_dataStack[0].openModal();

@@ -48,6 +48,19 @@ class DocumentController extends Controller
     // Afficher un document spécifique
     public function show(Document $document)
     {
+        $document->load([
+            'category',
+            'creator',
+            'verification',
+            'approvalSteps.approver',
+            'versions.creator',
+            'auditLogs.user',
+        ]);
+
+        // Logger la consultation
+        app(\App\Services\DocumentArchivalService::class)->logAction(
+            $document, 'viewed', 'Document consulté'
+        );
         return view('documents.show', compact('document'));
     }
 
@@ -55,22 +68,52 @@ class DocumentController extends Controller
     public function store(Request $request)
     {
         $request->validate([
-            'title' => 'required|string|max:255',
-            'category_id' => 'nullable|exists:categories,id',
-            'status' => 'nullable|in:draft,review,approved',
-            'is_confidential' => 'nullable|boolean',
-            'retention_years' => 'nullable|integer|min:0|max:100',
-            'expires_at' => 'nullable|date|after:today',
-            'tags' => 'nullable|string|max:1000',
+            'title'          => 'required|string|max:255',
+            'category_id'    => 'nullable|exists:categories,id',
+            'status'         => 'nullable|in:draft,review,approved',
+            'is_confidential'=> 'nullable|boolean',
+            'retention_years'=> 'nullable|integer|min:0|max:100',
+            'expires_at'     => 'nullable|date|after:today',
+            'tags'           => 'nullable|string|max:1000',
             'approval_workflow' => 'nullable|json',
-            'metadata' => ['nullable', new \App\Rules\ValidMetadata()],
+            'metadata'       => ['nullable', new \App\Rules\ValidMetadata()],
+            'import_file'    => 'nullable|file|mimes:docx,doc|max:51200',
         ]);
 
         try {
-            $title = $request->input('title');
-            $ref = 'BAMA-' . strtoupper(Str::random(6));
+            $title    = $request->input('title');
+            $ref      = 'BAMA-' . strtoupper(Str::random(6));
             $fileName = $ref . '.docx';
-            $path = 'documents/' . $fileName;
+            $path     = 'documents/' . $fileName;
+
+            // Mode import : utiliser le fichier uploadé directement
+            if ($request->boolean('import_mode') && $request->hasFile('import_file')) {
+                $file   = $request->file('import_file');
+                $stream = fopen($file->getRealPath(), 'r');
+                Storage::disk('s3')->put($path, $stream);
+                if (is_resource($stream)) fclose($stream);
+
+                $verificationCode = Str::random(32);
+                $categoryId = $request->input('category_id');
+                $document   = Document::create([
+                    'reference'       => $ref,
+                    'title'           => $title,
+                    'file_path'       => $path,
+                    'version'         => 1,
+                    'status'          => $request->input('status', 'draft'),
+                    'is_confidential' => $request->boolean('is_confidential'),
+                    'retention_years' => $request->input('retention_years', 5),
+                    'expires_at'      => $request->input('expires_at'),
+                    'creator_id'      => auth()->id(),
+                    'category_id'     => $categoryId,
+                    'tags'            => $request->input('tags') ? array_map('trim', explode(',', $request->input('tags'))) : null,
+                ]);
+
+                DocumentVerification::create(['document_id' => $document->id, 'verification_code' => $verificationCode]);
+                \App\Jobs\IndexDocumentText::dispatch($document->id);
+
+                return redirect()->route('documents.index')->with('success', 'Document importé : ' . $ref);
+            }
 
             // 1. Création du contenu Word
             $phpWord = new PhpWord();
@@ -286,20 +329,20 @@ class DocumentController extends Controller
         return redirect()->route('documents.index')->with('success', 'Document mis à jour.');
     }
 
-    // Supprimer un document
+    // Supprimer un document (soft delete → corbeille)
     public function destroy(Document $document)
     {
         if (!auth()->user()->hasRole('admin')) {
             abort(403);
         }
 
-        // Delete from storage
-        Storage::disk('s3')->delete($document->file_path);
-
-        // Delete from DB
+        // Soft delete — le fichier reste sur MinIO
+        app(\App\Services\DocumentArchivalService::class)->logAction(
+            $document, 'deleted', 'Déplacé dans la corbeille'
+        );
         $document->delete();
 
-        return redirect()->route('documents.index')->with('success', 'Document supprimé.');
+        return redirect()->route('documents.index')->with('success', 'Document déplacé dans la corbeille.');
     }
 
    // Archiver un document
@@ -353,6 +396,44 @@ class DocumentController extends Controller
             'Content-Disposition' => 'inline; filename="' . $document->reference . '.docx"',
             'Cache-Control' => 'no-cache',
         ]);
+    }
+
+    // Uploader une nouvelle version d'un document existant
+    public function uploadVersion(Request $request, Document $document)
+    {
+        $request->validate([
+            'file' => 'required|file|mimes:docx,doc|max:51200',
+        ]);
+
+        try {
+            $file     = $request->file('file');
+            $path     = 'documents/' . $document->reference . '_v' . (intval($document->version) + 1) . '.docx';
+
+            // Upload vers MinIO
+            Storage::disk('s3')->put($path, file_get_contents($file->getRealPath()));
+
+            // Créer une version via le service
+            $service = new DocumentArchivalService();
+            $service->createVersion($document, $path, $request->input('change_description', 'Mise à jour depuis Word'));
+
+            // Dispatch indexing
+            \App\Jobs\IndexDocumentText::dispatch($document->id);
+
+            return back()->with('success', 'Document mis à jour avec succès. Version ' . $document->fresh()->version . ' créée.');
+
+        } catch (Exception $e) {
+            Log::error('Erreur upload version: ' . $e->getMessage());
+            return back()->withErrors(['file' => 'Erreur lors de l\'upload : ' . $e->getMessage()]);
+        }
+    }
+
+    // Prévisualiser un document (lecture seule, HTML via Mammoth.js)
+    public function preview(Document $document)
+    {
+        if (!Storage::disk('s3')->exists($document->file_path)) {
+            abort(404, 'Fichier introuvable.');
+        }
+        return view('documents.preview', compact('document'));
     }
 
     // Afficher l'éditeur en ligne pour un document

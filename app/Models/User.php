@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Models\Role;
+use App\Models\LoginHistory;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
@@ -40,6 +41,18 @@ class User extends Authenticatable
     public function roles()
     {
         return $this->belongsToMany(Role::class);
+    }
+
+    // Favoris
+    public function favorites()
+    {
+        return $this->belongsToMany(Document::class, 'document_favorites');
+    }
+
+    // Historique de connexions
+    public function loginHistories()
+    {
+        return $this->hasMany(LoginHistory::class)->latest();
     }
 
     // Vérifie si l'utilisateur a un rôle spécifique

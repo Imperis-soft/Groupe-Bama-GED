@@ -224,6 +224,31 @@
                 </div>
             </div>
 
+            {{-- Historique de connexions --}}
+            <div class="bg-white rounded-2xl border border-slate-100 shadow-sm p-5">
+                <h2 class="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3">Dernières connexions</h2>
+                @php $logins = $user->loginHistories()->limit(5)->get(); @endphp
+                @if($logins->isEmpty())
+                <p class="text-xs text-slate-300 font-bold">Aucun historique</p>
+                @else
+                <div class="space-y-2">
+                    @foreach($logins as $login)
+                    <div class="flex items-center gap-3 p-2.5 rounded-xl {{ $login->success ? 'bg-green-50' : 'bg-red-50' }}">
+                        <div class="w-6 h-6 rounded-lg {{ $login->success ? 'bg-green-100' : 'bg-red-100' }} flex items-center justify-center shrink-0">
+                            <i class="fa-solid {{ $login->success ? 'fa-check text-green-500' : 'fa-xmark text-red-500' }} text-[9px]"></i>
+                        </div>
+                        <div class="flex-1 min-w-0">
+                            <p class="text-[10px] font-bold {{ $login->success ? 'text-green-700' : 'text-red-700' }}">
+                                {{ $login->success ? 'Connexion réussie' : 'Tentative échouée' }}
+                            </p>
+                            <p class="text-[9px] text-slate-400 font-mono truncate">{{ $login->ip_address }} · {{ $login->logged_at->diffForHumans() }}</p>
+                        </div>
+                    </div>
+                    @endforeach
+                </div>
+                @endif
+            </div>
+
         </div>
     </div>
 

@@ -103,6 +103,12 @@
             </div>
         </div>
 
+        {{-- Avertissement verrou --}}
+        <div id="lockWarning" class="hidden flex items-center gap-3 px-5 py-3 bg-amber-50 border-b border-amber-100">
+            <i class="fa-solid fa-lock text-amber-500 text-sm shrink-0"></i>
+            <p class="text-xs font-bold text-amber-700"></p>
+        </div>
+
         {{-- Loading --}}
         <div id="loadingState" class="flex flex-col items-center justify-center py-20 text-center">
             <div class="w-10 h-10 border-2 border-orange-200 border-t-orange-600 rounded-full animate-spin mb-4"></div>
@@ -158,10 +164,41 @@
 const SAVE_URL = '{{ route('documents.save-online', $document) }}';
 const CSRF     = '{{ csrf_token() }}';
 const DOC_URL  = '{{ route('documents.stream', $document) }}';
+const LOCK_URL = '{{ route('documents.lock.acquire', $document) }}';
+const UNLOCK_URL = '{{ route('documents.lock.release', $document) }}';
 
 let quill        = null;
 let isDirty      = false;
 let autoSaveTimer = null;
+let lockTimer    = null;
+
+async function acquireLock() {
+    try {
+        const res = await fetch(LOCK_URL, {
+            method: 'POST',
+            headers: { 'X-CSRF-TOKEN': CSRF, 'Accept': 'application/json' }
+        });
+        const data = await res.json();
+        if (data.locked) {
+            document.getElementById('lockWarning').textContent =
+                'Ce document est en cours d\'édition par ' + data.locked_by + ' (jusqu\'à ' + data.expires_at + ')';
+            document.getElementById('lockWarning').classList.remove('hidden');
+        } else {
+            // Renouveler le lock toutes les 20 minutes
+            lockTimer = setInterval(acquireLock, 20 * 60 * 1000);
+        }
+    } catch(e) {}
+}
+
+async function releaseLock() {
+    clearInterval(lockTimer);
+    try {
+        await fetch(UNLOCK_URL, {
+            method: 'DELETE',
+            headers: { 'X-CSRF-TOKEN': CSRF }
+        });
+    } catch(e) {}
+}
 
 function initEditor(html) {
     quill = new Quill('#editor', {
@@ -321,6 +358,8 @@ function showSavedIndicator() {
 window.addEventListener('beforeunload', e => { if (isDirty) { e.preventDefault(); e.returnValue = ''; } });
 
 loadDocument();
+acquireLock();
+window.addEventListener('beforeunload', releaseLock);
 </script>
 
 <style>

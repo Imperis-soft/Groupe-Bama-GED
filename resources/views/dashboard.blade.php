@@ -236,6 +236,36 @@
         </div>
     </div>
 
+    {{-- ===== FAVORIS ===== --}}
+    @php $favs = auth()->user()->favorites()->with('category')->latest('document_favorites.created_at')->limit(5)->get(); @endphp
+    @if($favs->count())
+    <div class="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
+        <div class="flex items-center justify-between px-5 py-4 border-b border-slate-50">
+            <div class="flex items-center gap-2">
+                <i class="fa-solid fa-star text-amber-400 text-sm"></i>
+                <h2 class="text-xs font-black text-slate-900 uppercase tracking-widest">Mes favoris</h2>
+            </div>
+            <a href="{{ route('documents.favorites') }}" class="text-[10px] font-bold text-slate-400 hover:text-orange-600 transition-colors">
+                Voir tous <i class="fa-solid fa-arrow-right text-[8px]"></i>
+            </a>
+        </div>
+        <div class="divide-y divide-slate-50">
+            @foreach($favs as $doc)
+            <a href="{{ route('documents.show', $doc) }}" class="flex items-center gap-3 px-5 py-3 hover:bg-slate-50/60 transition-colors group">
+                <div class="w-8 h-8 rounded-lg bg-amber-50 flex items-center justify-center shrink-0 group-hover:bg-orange-600 transition-colors">
+                    <i class="fa-solid fa-file-word text-amber-500 text-xs group-hover:text-white transition-colors"></i>
+                </div>
+                <div class="flex-1 min-w-0">
+                    <p class="text-sm font-bold text-slate-800 truncate">{{ $doc->title }}</p>
+                    <p class="text-[9px] text-slate-400 font-mono">{{ $doc->reference }}</p>
+                </div>
+                <span class="text-[9px] font-bold text-slate-400 shrink-0">{{ $doc->category?->name ?? 'Général' }}</span>
+            </a>
+            @endforeach
+        </div>
+    </div>
+    @endif
+
     {{-- ===== AUDIT LOG ===== --}}
     @if($recentActivities->count())
     <div class="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">

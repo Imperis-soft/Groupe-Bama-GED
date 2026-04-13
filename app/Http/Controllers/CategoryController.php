@@ -11,15 +11,25 @@ class CategoryController extends Controller
 // Afficher la liste des catégories
     public function index()
     {
-        $categories = Category::withCount('documents')->orderBy('name')->get();
-        return view('categories.index', compact('categories'));
+        $categories = Category::withCount('documents')
+            ->with('parent', 'children')
+            ->whereNull('parent_id')
+            ->orderBy('name')
+            ->paginate(12);
+
+        $allCategories = Category::whereNull('parent_id')->orderBy('name')->get();
+
+        return view('categories.index', compact('categories', 'allCategories'));
     }
 
 
-    // Afficher une catégorie spécifique
     public function show(Category $category)
     {
-        return view('categories.show', compact('category'));
+        $category->load(['parent', 'children' => function($q) {
+            $q->withCount('documents');
+        }]);
+        $documents = $category->documents()->with('creator')->latest()->paginate(12);
+        return view('categories.show', compact('category', 'documents'));
     }
 
 
@@ -34,9 +44,10 @@ class CategoryController extends Controller
     public function store(Request $request)
     {
         $data = $request->validate([
-            'name' => 'required|string|max:255|unique:categories,name',
-            'slug' => 'required|string|max:255|unique:categories,slug',
+            'name'        => 'required|string|max:255|unique:categories,name',
+            'slug'        => 'required|string|max:255|unique:categories,slug',
             'description' => 'nullable|string',
+            'parent_id'   => 'nullable|exists:categories,id',
         ]);
 
         Category::create($data);
@@ -56,9 +67,10 @@ class CategoryController extends Controller
     public function update(Request $request, Category $category)
     {
         $data = $request->validate([
-            'name' => 'required|string|max:255|unique:categories,name,' . $category->id,
-            'slug' => 'required|string|max:255|unique:categories,slug,' . $category->id,
+            'name'        => 'required|string|max:255|unique:categories,name,' . $category->id,
+            'slug'        => 'required|string|max:255|unique:categories,slug,' . $category->id,
             'description' => 'nullable|string',
+            'parent_id'   => 'nullable|exists:categories,id',
         ]);
 
         $category->update($data);

@@ -10,6 +10,17 @@ use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\WebDavController;
 use App\Http\Controllers\DocumentVerificationController;
 use App\Http\Controllers\ProfileController;
+use App\Http\Controllers\DocumentShareController;
+use App\Http\Controllers\DocumentCommentController;
+use App\Http\Controllers\ApprovalController;
+use App\Http\Controllers\DocumentSignatureController;
+use App\Http\Controllers\DocumentLockController;
+use App\Http\Controllers\NotificationController;
+use App\Http\Controllers\BulkDocumentController;
+use App\Http\Controllers\ReportController;
+use App\Http\Controllers\DocumentFavoriteController;
+use App\Http\Controllers\TrashController;
+use App\Http\Controllers\PasswordResetController;
 use Illuminate\Support\Facades\Storage;
 
 // --- Routes Publiques ---
@@ -22,6 +33,15 @@ Route::match(['get', 'put', 'options', 'head', 'propfind'], '/webdav/{id}', [Web
 // Routes de vérification publique
 Route::get('/verify/{code}', [DocumentVerificationController::class, 'show'])->name('verification.show');
 Route::post('/verify/{code}', [DocumentVerificationController::class, 'verify'])->name('verification.verify');
+
+// Accès document par lien partagé (public)
+Route::get('/share/{token}', [DocumentShareController::class, 'accessByToken'])->name('documents.share.access');
+
+// Mot de passe oublié (public)
+Route::get('/forgot-password', [PasswordResetController::class, 'showForgot'])->name('password.forgot');
+Route::post('/forgot-password', [PasswordResetController::class, 'sendReset'])->name('password.send');
+Route::get('/reset-password/{token}', [PasswordResetController::class, 'showReset'])->name('password.reset');
+Route::post('/reset-password', [PasswordResetController::class, 'reset'])->name('password.update');
 
     Route::get('/test-minio', function () {
     try {
@@ -67,6 +87,8 @@ Route::middleware(['auth'])->group(function () {
     Route::get('/documents/{document}/edit-online', [DocumentController::class, 'editOnline'])->name('documents.edit-online');
     Route::post('/documents/{document}/save-online', [DocumentController::class, 'saveOnline'])->name('documents.save-online');
     Route::get('/documents/{document}/stream', [DocumentController::class, 'stream'])->name('documents.stream');
+    Route::get('/documents/{document}/preview', [DocumentController::class, 'preview'])->name('documents.preview');
+    Route::post('/documents/{document}/upload-version', [DocumentController::class, 'uploadVersion'])->name('documents.upload-version');
     
     // Catégories
     Route::get('/categories', [CategoryController::class, 'index'])->name('categories.index');
@@ -97,4 +119,55 @@ Route::middleware(['auth'])->group(function () {
     // API interne (appelée en AJAX depuis les vues)
     Route::get('/api/documents/search', [DocumentController::class, 'apiSearch'])->name('documents.api.search');
     Route::get('/api/documents/{document}', [DocumentController::class, 'apiShow'])->name('documents.api.show');
+
+    // Partages
+    Route::get('/documents/{document}/shares', [DocumentShareController::class, 'index'])->name('documents.shares');
+    Route::post('/documents/{document}/shares', [DocumentShareController::class, 'store'])->name('documents.shares.store');
+    Route::delete('/documents/{document}/shares/{share}', [DocumentShareController::class, 'revoke'])->name('documents.shares.revoke');
+
+    // Commentaires
+    Route::post('/documents/{document}/comments', [DocumentCommentController::class, 'store'])->name('documents.comments.store');
+    Route::put('/documents/{document}/comments/{comment}', [DocumentCommentController::class, 'update'])->name('documents.comments.update');
+    Route::delete('/documents/{document}/comments/{comment}', [DocumentCommentController::class, 'destroy'])->name('documents.comments.destroy');
+
+    // Workflow d'approbation
+    Route::get('/documents/{document}/approval', [ApprovalController::class, 'index'])->name('documents.approval');
+    Route::post('/documents/{document}/approval/setup', [ApprovalController::class, 'setup'])->name('documents.approval.setup');
+    Route::post('/documents/{document}/approval/{step}/approve', [ApprovalController::class, 'approve'])->name('documents.approval.approve');
+    Route::post('/documents/{document}/approval/{step}/reject', [ApprovalController::class, 'reject'])->name('documents.approval.reject');
+
+    // Signatures
+    Route::get('/documents/{document}/signatures', [DocumentSignatureController::class, 'index'])->name('documents.signatures');
+    Route::post('/documents/{document}/signatures', [DocumentSignatureController::class, 'store'])->name('documents.signatures.store');
+    Route::get('/documents/{document}/signatures/{signature}/verify', [DocumentSignatureController::class, 'verify'])->name('documents.signatures.verify');
+
+    // Verrous
+    Route::post('/documents/{document}/lock', [DocumentLockController::class, 'acquire'])->name('documents.lock.acquire');
+    Route::delete('/documents/{document}/lock', [DocumentLockController::class, 'release'])->name('documents.lock.release');
+    Route::get('/documents/{document}/lock/status', [DocumentLockController::class, 'status'])->name('documents.lock.status');
+
+    // Notifications
+    Route::get('/notifications', [NotificationController::class, 'index'])->name('notifications.index');
+    Route::post('/notifications/{notification}/read', [NotificationController::class, 'markRead'])->name('notifications.read');
+    Route::post('/notifications/read-all', [NotificationController::class, 'markAllRead'])->name('notifications.read-all');
+    Route::get('/notifications/unread-count', [NotificationController::class, 'unreadCount'])->name('notifications.count');
+    Route::delete('/notifications/{notification}', [NotificationController::class, 'destroy'])->name('notifications.destroy');
+
+    // Opérations en masse
+    Route::post('/documents/bulk', [BulkDocumentController::class, 'action'])->name('documents.bulk');
+
+    // Rapports (admin seulement)
+    Route::get('/reports', [ReportController::class, 'index'])->name('reports.index')->middleware('role:admin');
+    Route::get('/reports/export-csv', [ReportController::class, 'exportCsv'])->name('reports.export-csv')->middleware('role:admin');
+    Route::get('/reports/export-audit', [ReportController::class, 'exportAuditCsv'])->name('reports.export-audit')->middleware('role:admin');
+
+    // Favoris
+    Route::post('/documents/{document}/favorite', [DocumentFavoriteController::class, 'toggle'])->name('documents.favorite');
+    Route::get('/favorites', [DocumentFavoriteController::class, 'index'])->name('documents.favorites');
+
+    // Corbeille
+    Route::get('/trash', [TrashController::class, 'index'])->name('trash.index');
+    Route::post('/trash/{id}/restore', [TrashController::class, 'restore'])->name('trash.restore');
+    Route::delete('/trash/{id}/force', [TrashController::class, 'forceDelete'])->name('trash.force-delete')->middleware('role:admin');
+    Route::delete('/trash/empty', [TrashController::class, 'emptyTrash'])->name('trash.empty')->middleware('role:admin');
 });

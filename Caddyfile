@@ -1,9 +1,29 @@
 https://localhost:443 {
     tls docker/nginx/certs/localhost.crt docker/nginx/certs/localhost.key
-    reverse_proxy 127.0.0.1:8000
+    reverse_proxy 127.0.0.1:8000 {
+        header_up X-Forwarded-Proto https
+        header_up X-Forwarded-For {remote_host}
+        header_up Host {host}
+    }
 }
 
 https://192.168.1.246:443 {
     tls docker/nginx/certs/localhost.crt docker/nginx/certs/localhost.key
-    reverse_proxy 127.0.0.1:8000
+    reverse_proxy 127.0.0.1:8000 {
+        header_up X-Forwarded-Proto https
+        header_up X-Forwarded-For {remote_host}
+        header_up Host {host}
+    }
+}
+
+# HTTP port 80 - WebDAV uniquement (pas de redirect vers HTTPS)
+:80 {
+    @webdav path /webdav/*
+    handle @webdav {
+        reverse_proxy 127.0.0.1:8000
+    }
+    # Tout le reste -> HTTPS
+    handle {
+        redir https://{host}{uri} 308
+    }
 }

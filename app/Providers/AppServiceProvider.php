@@ -20,8 +20,14 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
-        // Force HTTPS en production
-        if (app()->environment('production')) {
+        // Forcer l'URL racine depuis APP_URL (proxy Caddy HTTPS)
+        $appUrl = config('app.url');
+        if ($appUrl) {
+            URL::forceRootUrl($appUrl);
+        }
+
+        // Force HTTPS si APP_URL commence par https
+        if (str_starts_with($appUrl, 'https://')) {
             URL::forceScheme('https');
         }
 

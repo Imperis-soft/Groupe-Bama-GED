@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Document;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Facades\Hash;
 use Sabre\DAV\Server;
 use Sabre\DAV\FS\File;
 use Symfony\Component\HttpFoundation\StreamedResponse;
@@ -26,6 +27,26 @@ class WebDavController extends Controller
     {
         $document = Document::findOrFail($id);
         $disk = Storage::disk('s3');
+
+        // Authentification Basic pour WebDAV (Word l'exige)
+        $user = $request->getUser();
+        $pass = $request->getPassword();
+
+        if (empty($user) || empty($pass)) {
+            return response('Unauthorized', 401, [
+                'WWW-Authenticate' => 'Basic realm="Groupe Bama GED"',
+                'DAV'              => '1, 2',
+            ]);
+        }
+
+        // Vérifier les credentials
+        $authUser = \App\Models\User::where('email', $user)->first();
+        if (!$authUser || !\Illuminate\Support\Facades\Hash::check($pass, $authUser->password)) {
+            return response('Unauthorized', 401, [
+                'WWW-Authenticate' => 'Basic realm="Groupe Bama GED"',
+                'DAV'              => '1, 2',
+            ]);
+        }
 
         // OPTIONS — Word vérifie les capacités du serveur
         if ($request->isMethod('OPTIONS')) {

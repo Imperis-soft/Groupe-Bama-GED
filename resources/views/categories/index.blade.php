@@ -7,114 +7,134 @@
     <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
             <h1 class="text-2xl font-black text-slate-900 tracking-tight leading-none">Catégories</h1>
-            <p class="text-xs text-slate-400 font-medium mt-1">{{ $categories->count() }} catégorie(s) au total</p>
+            <p class="text-xs text-slate-400 font-medium mt-1">
+                {{ $categories->total() }} catégorie(s) racine · {{ \App\Models\Category::count() }} au total
+            </p>
         </div>
+        @if(auth()->user()->hasRole('admin'))
         <button @click="createOpen = true"
             class="inline-flex items-center gap-2 bg-orange-600 hover:bg-orange-500 active:scale-95 text-white text-xs font-black uppercase tracking-widest px-5 py-2.5 rounded-xl shadow-lg shadow-orange-200 transition-all self-start sm:self-auto">
             <i class="fa-solid fa-folder-plus text-[10px]"></i> Nouvelle catégorie
         </button>
-    </div>
-
-    {{-- TABLE --}}
-    <div class="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
-
-        @if($categories->isEmpty())
-        <div class="flex flex-col items-center justify-center py-16 text-center">
-            <div class="w-12 h-12 rounded-2xl bg-slate-50 flex items-center justify-center mb-4">
-                <i class="fa-solid fa-folder-open text-slate-300 text-xl"></i>
-            </div>
-            <p class="text-sm font-bold text-slate-400">Aucune catégorie</p>
-            <button @click="createOpen = true"
-                class="mt-4 inline-flex items-center gap-2 bg-orange-600 text-white text-xs font-black uppercase tracking-widest px-5 py-2.5 rounded-xl shadow-lg shadow-orange-200 hover:bg-orange-500 transition-all">
-                <i class="fa-solid fa-plus text-[10px]"></i> Créer la première
-            </button>
-        </div>
-        @else
-
-        {{-- Desktop --}}
-        <div class="hidden md:block overflow-x-auto">
-            <table class="w-full text-left">
-                <thead>
-                    <tr class="bg-slate-50 border-b border-slate-100">
-                        <th class="px-6 py-3 text-[9px] font-black text-slate-400 uppercase tracking-widest">Catégorie</th>
-                        <th class="px-6 py-3 text-[9px] font-black text-slate-400 uppercase tracking-widest">Description</th>
-                        <th class="px-6 py-3 text-[9px] font-black text-slate-400 uppercase tracking-widest text-center">Documents</th>
-                        <th class="px-6 py-3 text-[9px] font-black text-slate-400 uppercase tracking-widest text-right">Actions</th>
-                    </tr>
-                </thead>
-                <tbody class="divide-y divide-slate-50">
-                    @foreach($categories as $c)
-                    <tr class="hover:bg-slate-50/60 transition-colors group">
-                        <td class="px-6 py-4">
-                            <div class="flex items-center gap-3">
-                                <div class="w-9 h-9 rounded-xl bg-orange-50 flex items-center justify-center shrink-0 group-hover:bg-orange-600 transition-colors">
-                                    <i class="fa-solid fa-folder-tree text-orange-500 text-sm group-hover:text-white transition-colors"></i>
-                                </div>
-                                <div>
-                                    <a href="{{ route('categories.show', $c) }}"
-                                       class="text-sm font-bold text-slate-800 hover:text-orange-600 transition-colors">
-                                        {{ $c->name }}
-                                    </a>
-                                    <p class="text-[9px] font-mono text-orange-500 font-bold mt-0.5">{{ $c->slug }}</p>
-                                </div>
-                            </div>
-                        </td>
-                        <td class="px-6 py-4">
-                            <p class="text-xs text-slate-500 max-w-xs truncate italic">
-                                {{ $c->description ?? '—' }}
-                            </p>
-                        </td>
-                        <td class="px-6 py-4 text-center">
-                            <span class="inline-flex items-center justify-center w-7 h-7 rounded-lg bg-slate-100 text-slate-600 text-xs font-black">
-                                {{ $c->documents_count ?? $c->documents()->count() }}
-                            </span>
-                        </td>
-                        <td class="px-6 py-4">
-                            <div class="flex items-center justify-end gap-1">
-                                <button @click="editData = {{ $c->toJson() }}; editOpen = true"
-                                    class="w-8 h-8 flex items-center justify-center rounded-lg text-slate-400 hover:bg-blue-50 hover:text-blue-600 transition-all">
-                                    <i class="fa-solid fa-pen text-xs"></i>
-                                </button>
-                                @if(auth()->user()->hasRole('admin'))
-                                <form action="{{ route('categories.destroy', $c) }}" method="POST"
-                                      onsubmit="return confirm('Supprimer cette catégorie ?');" class="inline">
-                                    @csrf @method('DELETE')
-                                    <button type="submit"
-                                        class="w-8 h-8 flex items-center justify-center rounded-lg text-slate-400 hover:bg-red-50 hover:text-red-600 transition-all">
-                                        <i class="fa-solid fa-trash-can text-xs"></i>
-                                    </button>
-                                </form>
-                                @endif
-                            </div>
-                        </td>
-                    </tr>
-                    @endforeach
-                </tbody>
-            </table>
-        </div>
-
-        {{-- Mobile --}}
-        <div class="md:hidden divide-y divide-slate-50">
-            @foreach($categories as $c)
-            <div class="flex items-center gap-3 px-4 py-4">
-                <div class="w-10 h-10 rounded-xl bg-orange-50 flex items-center justify-center shrink-0">
-                    <i class="fa-solid fa-folder-tree text-orange-500 text-sm"></i>
-                </div>
-                <div class="flex-1 min-w-0">
-                    <a href="{{ route('categories.show', $c) }}"
-                       class="text-sm font-bold text-slate-800 hover:text-orange-600 block truncate">{{ $c->name }}</a>
-                    <p class="text-[9px] font-mono text-orange-500 mt-0.5">{{ $c->slug }}</p>
-                </div>
-                <button @click="editData = {{ $c->toJson() }}; editOpen = true"
-                    class="w-8 h-8 flex items-center justify-center rounded-lg text-slate-400 hover:bg-blue-50 hover:text-blue-600 transition-all shrink-0">
-                    <i class="fa-solid fa-pen text-xs"></i>
-                </button>
-            </div>
-            @endforeach
-        </div>
-
         @endif
     </div>
+
+    {{-- GRILLE CATÉGORIES --}}
+    @if($categories->isEmpty())
+    <div class="bg-white rounded-2xl border border-slate-100 shadow-sm flex flex-col items-center justify-center py-16 text-center">
+        <div class="w-12 h-12 rounded-2xl bg-slate-50 flex items-center justify-center mb-4">
+            <i class="fa-solid fa-folder-open text-slate-300 text-xl"></i>
+        </div>
+        <p class="text-sm font-bold text-slate-400">Aucune catégorie</p>
+        @if(auth()->user()->hasRole('admin'))
+        <button @click="createOpen = true"
+            class="mt-4 inline-flex items-center gap-2 bg-orange-600 text-white text-xs font-black uppercase tracking-widest px-5 py-2.5 rounded-xl shadow-lg shadow-orange-200 hover:bg-orange-500 transition-all">
+            <i class="fa-solid fa-plus text-[10px]"></i> Créer la première
+        </button>
+        @endif
+    </div>
+    @else
+
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+        @foreach($categories as $cat)
+        <div class="bg-white rounded-2xl border border-slate-100 shadow-sm hover:shadow-md hover:border-orange-200 transition-all group overflow-hidden">
+
+            {{-- Bande couleur --}}
+            <div class="h-1 w-full bg-gradient-to-r from-orange-400 to-orange-600"></div>
+
+            <div class="p-5">
+                {{-- Icône + nom --}}
+                <div class="flex items-start justify-between gap-3 mb-3">
+                    <div class="flex items-center gap-3 min-w-0">
+                        <div class="w-10 h-10 rounded-xl bg-orange-50 flex items-center justify-center shrink-0 group-hover:bg-orange-600 transition-colors">
+                            <i class="fa-solid fa-folder-tree text-orange-500 text-sm group-hover:text-white transition-colors"></i>
+                        </div>
+                        <div class="min-w-0">
+                            <a href="{{ route('categories.show', $cat) }}"
+                               class="text-sm font-black text-slate-900 hover:text-orange-600 transition-colors block truncate leading-tight">
+                                {{ $cat->name }}
+                            </a>
+                            <p class="text-[9px] font-mono text-orange-500 font-bold mt-0.5 truncate">{{ $cat->slug }}</p>
+                        </div>
+                    </div>
+                    @if(auth()->user()->hasRole('admin'))
+                    <div class="flex items-center gap-1 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <button @click="editData = {{ $cat->toJson() }}; editOpen = true"
+                            class="w-7 h-7 flex items-center justify-center rounded-lg text-slate-400 hover:bg-blue-50 hover:text-blue-600 transition-all">
+                            <i class="fa-solid fa-pen text-[10px]"></i>
+                        </button>
+                        <form action="{{ route('categories.destroy', $cat) }}" method="POST"
+                              onsubmit="return confirm('Supprimer {{ $cat->name }} ?');" class="inline">
+                            @csrf @method('DELETE')
+                            <button type="submit"
+                                class="w-7 h-7 flex items-center justify-center rounded-lg text-slate-400 hover:bg-red-50 hover:text-red-600 transition-all">
+                                <i class="fa-solid fa-trash-can text-[10px]"></i>
+                            </button>
+                        </form>
+                    </div>
+                    @endif
+                </div>
+
+                {{-- Description --}}
+                @if($cat->description)
+                <p class="text-[10px] text-slate-500 leading-relaxed mb-3 line-clamp-2">{{ $cat->description }}</p>
+                @endif
+
+                {{-- Stats --}}
+                <div class="flex items-center justify-between pt-3 border-t border-slate-50">
+                    <div class="flex items-center gap-3">
+                        <div class="flex items-center gap-1.5">
+                            <i class="fa-solid fa-file-lines text-slate-300 text-[10px]"></i>
+                            <span class="text-[10px] font-bold text-slate-500">{{ $cat->documents_count }} doc(s)</span>
+                        </div>
+                        @if($cat->children->count() > 0)
+                        <div class="flex items-center gap-1.5">
+                            <i class="fa-solid fa-sitemap text-slate-300 text-[10px]"></i>
+                            <span class="text-[10px] font-bold text-slate-500">{{ $cat->children->count() }} sous-cat.</span>
+                        </div>
+                        @endif
+                    </div>
+                    <a href="{{ route('categories.show', $cat) }}"
+                       class="text-[9px] font-black text-orange-600 hover:underline uppercase tracking-wider">
+                        Voir <i class="fa-solid fa-arrow-right text-[8px]"></i>
+                    </a>
+                </div>
+
+                {{-- Sous-catégories --}}
+                @if($cat->children->count() > 0)
+                <div class="mt-3 pt-3 border-t border-slate-50">
+                    <div class="flex flex-wrap gap-1.5">
+                        @foreach($cat->children->take(4) as $child)
+                        <a href="{{ route('categories.show', $child) }}"
+                           class="inline-flex items-center gap-1 px-2 py-1 bg-slate-50 hover:bg-orange-50 hover:text-orange-600 text-slate-500 rounded-lg text-[9px] font-bold transition-colors">
+                            <i class="fa-solid fa-folder text-[8px]"></i>
+                            {{ $child->name }}
+                        </a>
+                        @endforeach
+                        @if($cat->children->count() > 4)
+                        <span class="px-2 py-1 bg-slate-50 text-slate-400 rounded-lg text-[9px] font-bold">
+                            +{{ $cat->children->count() - 4 }}
+                        </span>
+                        @endif
+                    </div>
+                </div>
+                @endif
+            </div>
+        </div>
+        @endforeach
+    </div>
+
+    {{-- PAGINATION --}}
+    @if($categories->hasPages())
+    <div class="flex flex-col sm:flex-row items-center justify-between gap-3 bg-white rounded-2xl border border-slate-100 shadow-sm px-5 py-4">
+        <p class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+            {{ $categories->firstItem() }}–{{ $categories->lastItem() }} sur {{ $categories->total() }} catégories
+        </p>
+        {{ $categories->links() }}
+    </div>
+    @endif
+
+    @endif
 
     {{-- MODAL CRÉER --}}
     <div x-show="createOpen" x-cloak
@@ -145,6 +165,16 @@
             <form action="{{ route('categories.store') }}" method="POST" class="p-6 space-y-4">
                 @csrf
                 <div>
+                    <label class="block text-[9px] font-black text-slate-500 uppercase tracking-widest mb-1.5">Catégorie parente</label>
+                    <select name="parent_id"
+                            class="w-full bg-slate-50 border border-slate-100 rounded-xl px-4 py-2.5 text-sm font-medium text-slate-700 focus:outline-none focus:ring-2 focus:ring-orange-500 transition-all">
+                        <option value="">Aucune (catégorie racine)</option>
+                        @foreach($allCategories as $parent)
+                        <option value="{{ $parent->id }}">{{ $parent->name }}</option>
+                        @endforeach
+                    </select>
+                </div>
+                <div>
                     <label class="block text-[9px] font-black text-slate-500 uppercase tracking-widest mb-1.5">Nom <span class="text-red-500">*</span></label>
                     <input type="text" name="name" id="create_name" required
                            oninput="generateSlug(this.value, 'create_slug')"
@@ -159,7 +189,7 @@
                 </div>
                 <div>
                     <label class="block text-[9px] font-black text-slate-500 uppercase tracking-widest mb-1.5">Description</label>
-                    <textarea name="description" rows="3" placeholder="Description optionnelle..."
+                    <textarea name="description" rows="2" placeholder="Description optionnelle..."
                         class="w-full bg-slate-50 border border-slate-100 rounded-xl px-4 py-2.5 text-sm font-medium text-slate-700 placeholder-slate-300 focus:outline-none focus:ring-2 focus:ring-orange-500 transition-all resize-none"></textarea>
                 </div>
                 <div class="flex gap-3 pt-1">
@@ -206,6 +236,19 @@
                 @csrf
                 @method('PUT')
                 <div>
+                    <label class="block text-[9px] font-black text-slate-500 uppercase tracking-widest mb-1.5">Catégorie parente</label>
+                    <select name="parent_id"
+                            class="w-full bg-slate-50 border border-slate-100 rounded-xl px-4 py-2.5 text-sm font-medium text-slate-700 focus:outline-none focus:ring-2 focus:ring-orange-500 transition-all">
+                        <option value="">Aucune (catégorie racine)</option>
+                        @foreach($allCategories as $parent)
+                        <option :value="'{{ $parent->id }}'"
+                                :selected="editData.parent_id == '{{ $parent->id }}'">
+                            {{ $parent->name }}
+                        </option>
+                        @endforeach
+                    </select>
+                </div>
+                <div>
                     <label class="block text-[9px] font-black text-slate-500 uppercase tracking-widest mb-1.5">Nom <span class="text-red-500">*</span></label>
                     <input type="text" name="name" :value="editData.name" required
                            class="w-full bg-slate-50 border border-slate-100 rounded-xl px-4 py-2.5 text-sm font-medium text-slate-800 focus:outline-none focus:ring-2 focus:ring-orange-500 transition-all">
@@ -217,7 +260,7 @@
                 </div>
                 <div>
                     <label class="block text-[9px] font-black text-slate-500 uppercase tracking-widest mb-1.5">Description</label>
-                    <textarea name="description" rows="3" :value="editData.description"
+                    <textarea name="description" rows="2"
                         class="w-full bg-slate-50 border border-slate-100 rounded-xl px-4 py-2.5 text-sm font-medium text-slate-700 focus:outline-none focus:ring-2 focus:ring-orange-500 transition-all resize-none"
                         x-text="editData.description"></textarea>
                 </div>

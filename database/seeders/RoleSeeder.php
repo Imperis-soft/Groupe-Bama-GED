@@ -2,24 +2,23 @@
 
 namespace Database\Seeders;
 
-use Illuminate\Database\Seeder;
 use App\Models\Role;
-use App\Models\User;
+use Illuminate\Database\Seeder;
 
 class RoleSeeder extends Seeder
 {
-    public function run()
+    public function run(): void
     {
-        $admin = Role::firstOrCreate(['name' => 'admin'], ['display_name' => 'Administrator']);
-        $editor = Role::firstOrCreate(['name' => 'editor'], ['display_name' => 'Editor']);
-        $viewer = Role::firstOrCreate(['name' => 'viewer'], ['display_name' => 'Viewer']);
+        $roles = [
+            ['name' => 'admin',  'display_name' => 'Administrateur', 'description' => 'Accès complet à toutes les fonctionnalités.'],
+            ['name' => 'editor', 'display_name' => 'Éditeur',        'description' => 'Peut créer, modifier et archiver des documents.'],
+            ['name' => 'viewer', 'display_name' => 'Lecteur',        'description' => 'Consultation et téléchargement uniquement.'],
+        ];
 
-        // Attach admin emails if users exist
-        foreach (['admin@bama.com', 'contact@imperis.com'] as $email) {
-            $user = User::where('email', $email)->first();
-            if ($user && ! $user->roles()->where('name', 'admin')->exists()) {
-                $user->roles()->attach($admin->id);
-            }
+        foreach ($roles as $role) {
+            Role::firstOrCreate(['name' => $role['name']], $role);
         }
+
+        $this->command->info('✓ ' . count($roles) . ' rôles créés.');
     }
 }
