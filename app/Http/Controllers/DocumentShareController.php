@@ -12,6 +12,9 @@ class DocumentShareController extends Controller
 {
     public function index(Document $document)
     {
+        if (!$document->canView()) {
+            abort(403, 'Accès refusé à ce document.');
+        }
         $shares = $document->shares()->with('sharedWith', 'sharedBy')->latest()->get();
         $users  = User::where('id', '!=', auth()->id())->orderBy('full_name')->get();
         return view('documents.shares', compact('document', 'shares', 'users'));
@@ -19,6 +22,10 @@ class DocumentShareController extends Controller
 
     public function store(Request $request, Document $document)
     {
+        if (!$document->canView()) {
+            abort(403, 'Accès refusé à ce document.');
+        }
+
         $data = $request->validate([
             'shared_with'  => 'nullable|exists:users,id',
             'access_level' => 'required|in:view,edit,comment',
@@ -26,6 +33,21 @@ class DocumentShareController extends Controller
             'expires_at'   => 'nullable|date|after:today',
             'generate_link'=> 'nullable|boolean',
         ]);
+
+        // Unicité : un seul partage actif par document + utilisateur
+        if (!empty($data['shared_with'])) {
+            $exists = DocumentShare::where('document_id', $document->id)
+                ->where('shared_with', $data['shared_with'])
+                ->where('is_active', true)
+                ->exists();
+
+            if ($exists) {
+                $user = User::find($data['shared_with']);
+                return back()->withErrors([
+                    'shared_with' => 'Ce document est déjà partagé avec ' . ($user?->full_name ?? 'cet utilisateur') . '. Révoquez le partage existant avant d\'en créer un nouveau.'
+                ])->withInput();
+            }
+        }
 
         $share = DocumentShare::create([
             'document_id'  => $document->id,

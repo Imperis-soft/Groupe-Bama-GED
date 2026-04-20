@@ -17,7 +17,7 @@ class CategoryController extends Controller
             ->orderBy('name')
             ->paginate(12);
 
-        $allCategories = Category::whereNull('parent_id')->orderBy('name')->get();
+        $allCategories = Category::orderBy('name')->get();
 
         return view('categories.index', compact('categories', 'allCategories'));
     }
@@ -36,7 +36,8 @@ class CategoryController extends Controller
     // Afficher le formulaire de création et stocker une nouvelle catégorie
     public function create()
     {
-        return view('categories.create');
+        $allCategories = Category::orderBy('name')->get();
+        return view('categories.create', compact('allCategories'));
     }
 
 
@@ -52,14 +53,18 @@ class CategoryController extends Controller
 
         Category::create($data);
 
-        return redirect()->route('categories.index')->with('success', 'Category created');
+        return redirect()->route('categories.index')->with('success', 'Catégorie créée avec succès.');
     }
 
 
     // Afficher le formulaire d'édition et mettre à jour une catégorie existante
     public function edit(Category $category)
     {
-        return view('categories.edit', compact('category'));
+        $allCategories = Category::where('id', '!=', $category->id)
+            ->whereNotIn('id', $category->allChildren()->pluck('id'))
+            ->orderBy('name')
+            ->get();
+        return view('categories.edit', compact('category', 'allCategories'));
     }
 
 
@@ -75,7 +80,7 @@ class CategoryController extends Controller
 
         $category->update($data);
 
-        return redirect()->route('categories.index')->with('success', 'Category updated');
+        return redirect()->route('categories.index')->with('success', 'Catégorie mise à jour.');
     }
 
 
@@ -83,6 +88,6 @@ class CategoryController extends Controller
     public function destroy(Category $category)
     {
         $category->delete();
-        return redirect()->route('categories.index')->with('success', 'Category deleted');
+        return redirect()->route('categories.index')->with('success', 'Catégorie supprimée.');
     }
 }

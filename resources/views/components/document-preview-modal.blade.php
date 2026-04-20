@@ -1,6 +1,7 @@
 @props([])
 
-<div x-data="documentPreview()" class="fixed inset-0 z-50 overflow-y-auto" x-show="showModal" style="display: none;">
+<div x-data="documentPreview()" class="fixed inset-0 z-50 overflow-y-auto" x-show="showModal" style="display: none;"
+     @open-preview.window="openWithData($event.detail)">
     <div class="flex items-center justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
         <!-- Overlay -->
         <div class="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity" @click="closeModal()" x-show="showModal"></div>
@@ -121,6 +122,11 @@ function documentPreview() {
     return {
         showModal: false,
         document: null,
+
+        openWithData(docData) {
+            this.document = docData;
+            this.openModal();
+        },
 
         openModal() {
             this.showModal = true;

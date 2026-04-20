@@ -26,7 +26,9 @@
         <div class="bg-white rounded-2xl border border-slate-100 p-4 md:p-5 shadow-sm hover:shadow-md transition-shadow relative overflow-hidden group">
             <div class="flex items-start justify-between">
                 <div>
-                    <p class="text-[9px] font-black text-slate-400 uppercase tracking-widest">Documents</p>
+                    <p class="text-[9px] font-black text-slate-400 uppercase tracking-widest">
+                        {{ $isAdmin ? 'Documents' : 'Mes documents' }}
+                    </p>
                     <p class="text-3xl font-black text-slate-900 mt-1 leading-none">{{ number_format($documentsCount) }}</p>
                 </div>
                 <div class="w-10 h-10 rounded-xl bg-blue-50 flex items-center justify-center shrink-0">
@@ -40,7 +42,8 @@
             <div class="absolute -bottom-3 -right-3 w-16 h-16 rounded-full bg-blue-50/60 group-hover:bg-blue-100/60 transition-colors"></div>
         </div>
 
-        {{-- Catégories --}}
+        {{-- Catégories (admin) / Partagés avec moi (non-admin) --}}
+        @if($isAdmin)
         <div class="bg-white rounded-2xl border border-slate-100 p-4 md:p-5 shadow-sm hover:shadow-md transition-shadow relative overflow-hidden group">
             <div class="flex items-start justify-between">
                 <div>
@@ -56,8 +59,26 @@
             </div>
             <div class="absolute -bottom-3 -right-3 w-16 h-16 rounded-full bg-purple-50/60 group-hover:bg-purple-100/60 transition-colors"></div>
         </div>
+        @else
+        <div class="bg-white rounded-2xl border border-slate-100 p-4 md:p-5 shadow-sm hover:shadow-md transition-shadow relative overflow-hidden group">
+            <div class="flex items-start justify-between">
+                <div>
+                    <p class="text-[9px] font-black text-slate-400 uppercase tracking-widest">Partagés</p>
+                    <p class="text-3xl font-black text-slate-900 mt-1 leading-none">{{ number_format($sharedWithMeCount) }}</p>
+                </div>
+                <div class="w-10 h-10 rounded-xl bg-purple-50 flex items-center justify-center shrink-0">
+                    <i class="fa-solid fa-share-nodes text-purple-500 text-sm"></i>
+                </div>
+            </div>
+            <div class="mt-3">
+                <span class="text-[9px] font-bold text-slate-400 uppercase tracking-wider">Avec moi</span>
+            </div>
+            <div class="absolute -bottom-3 -right-3 w-16 h-16 rounded-full bg-purple-50/60 group-hover:bg-purple-100/60 transition-colors"></div>
+        </div>
+        @endif
 
-        {{-- Utilisateurs --}}
+        {{-- Utilisateurs (admin) / Approbations en attente (non-admin) --}}
+        @if($isAdmin)
         <div class="bg-white rounded-2xl border border-slate-100 p-4 md:p-5 shadow-sm hover:shadow-md transition-shadow relative overflow-hidden group">
             <div class="flex items-start justify-between">
                 <div>
@@ -74,6 +95,25 @@
             </div>
             <div class="absolute -bottom-3 -right-3 w-16 h-16 rounded-full bg-orange-50/60 group-hover:bg-orange-100/60 transition-colors"></div>
         </div>
+        @else
+        <div class="bg-white rounded-2xl border border-slate-100 p-4 md:p-5 shadow-sm hover:shadow-md transition-shadow relative overflow-hidden group">
+            <div class="flex items-start justify-between">
+                <div>
+                    <p class="text-[9px] font-black text-slate-400 uppercase tracking-widest">À approuver</p>
+                    <p class="text-3xl font-black {{ $pendingApprovalsCount > 0 ? 'text-amber-600' : 'text-slate-900' }} mt-1 leading-none">{{ number_format($pendingApprovalsCount) }}</p>
+                </div>
+                <div class="w-10 h-10 rounded-xl {{ $pendingApprovalsCount > 0 ? 'bg-amber-50' : 'bg-slate-50' }} flex items-center justify-center shrink-0">
+                    <i class="fa-solid fa-list-check {{ $pendingApprovalsCount > 0 ? 'text-amber-500' : 'text-slate-400' }} text-sm"></i>
+                </div>
+            </div>
+            <div class="mt-3">
+                <span class="text-[9px] font-bold {{ $pendingApprovalsCount > 0 ? 'text-amber-500' : 'text-slate-400' }} uppercase tracking-wider">
+                    {{ $pendingApprovalsCount > 0 ? 'Action requise' : 'Aucune en attente' }}
+                </span>
+            </div>
+            <div class="absolute -bottom-3 -right-3 w-16 h-16 rounded-full {{ $pendingApprovalsCount > 0 ? 'bg-amber-50/60' : 'bg-slate-50/60' }} group-hover:opacity-80 transition-colors"></div>
+        </div>
+        @endif
 
         {{-- Expirés --}}
         <div class="bg-white rounded-2xl border border-slate-100 p-4 md:p-5 shadow-sm hover:shadow-md transition-shadow relative overflow-hidden group">
@@ -132,7 +172,7 @@
                             {{ $doc->status === 'approved' ? 'bg-green-50 text-green-600' :
                                ($doc->status === 'review'   ? 'bg-blue-50 text-blue-600' :
                                                               'bg-slate-100 text-slate-500') }}">
-                            {{ $doc->status }}
+                            {{ statusLabel($doc->status) }}
                         </span>
                         <span class="hidden md:inline-block px-2 py-0.5 bg-slate-100 text-slate-500 rounded-lg text-[9px] font-bold">
                             {{ $doc->category?->name ?? 'Général' }}
@@ -207,10 +247,17 @@
                         <p class="text-xl font-black {{ $expiredCount > 0 ? 'text-red-600' : 'text-slate-900' }}">{{ number_format($expiredCount) }}</p>
                         <p class="text-[8px] font-black text-slate-400 uppercase tracking-wider mt-0.5">Expirés</p>
                     </div>
+                    @if($isAdmin)
                     <div class="bg-slate-50 rounded-xl p-3 text-center">
                         <p class="text-xl font-black text-purple-600">{{ number_format($confidentialCount) }}</p>
                         <p class="text-[8px] font-black text-slate-400 uppercase tracking-wider mt-0.5">Confidentiels</p>
                     </div>
+                    @else
+                    <div class="bg-slate-50 rounded-xl p-3 text-center">
+                        <p class="text-xl font-black text-amber-600">{{ number_format($draftCount) }}</p>
+                        <p class="text-[8px] font-black text-slate-400 uppercase tracking-wider mt-0.5">Brouillons</p>
+                    </div>
+                    @endif
                     <div class="bg-slate-50 rounded-xl p-3 text-center">
                         <p class="text-xl font-black text-blue-600">{{ number_format($reviewCount) }}</p>
                         <p class="text-[8px] font-black text-slate-400 uppercase tracking-wider mt-0.5">En révision</p>
@@ -283,7 +330,7 @@
                 </div>
                 <div class="min-w-0 flex-1">
                     <p class="text-xs font-bold text-slate-800 truncate">
-                        <span class="text-orange-600">{{ $activity->action }}</span>
+                        <span class="text-orange-600">{{ actionLabel($activity->action) }}</span>
                         <span class="text-slate-400 font-normal"> — {{ Str::limit($activity->document->title ?? '—', 40) }}</span>
                     </p>
                     <p class="text-[9px] text-slate-400 mt-0.5">

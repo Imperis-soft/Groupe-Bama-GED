@@ -35,7 +35,7 @@
             {{ $document->status === 'approved' ? 'bg-green-50 text-green-600' :
                ($document->status === 'review'   ? 'bg-blue-50 text-blue-600' :
                ($document->status === 'archived' ? 'bg-slate-100 text-slate-500' : 'bg-amber-50 text-amber-600')) }}">
-            {{ $document->status }}
+            {{ statusLabel($document->status) }}
         </span>
     </div>
 
@@ -93,7 +93,7 @@
                                 @elseif($log->action === 'downloaded') <i class="fa-solid fa-download text-[8px]"></i>
                                 @else <i class="fa-solid fa-bolt text-[8px]"></i>
                                 @endif
-                                {{ $log->action }}
+                                {{ actionLabel($log->action) }}
                             </span>
                         </td>
                         <td class="px-6 py-4">
@@ -141,7 +141,7 @@
                 </div>
                 <div class="flex-1 min-w-0">
                     <div class="flex items-center justify-between gap-2">
-                        <span class="text-xs font-black text-slate-800 uppercase tracking-wider">{{ $log->action }}</span>
+                        <span class="text-xs font-black text-slate-800 uppercase tracking-wider">{{ actionLabel($log->action) }}</span>
                         <span class="text-[9px] text-slate-400 font-mono shrink-0">{{ $log->created_at->format('d/m H:i') }}</span>
                     </div>
                     <p class="text-xs font-semibold text-slate-600 mt-0.5">{{ $log->user->full_name ?? 'Système' }}</p>

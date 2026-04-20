@@ -70,6 +70,9 @@ Route::middleware(['auth'])->group(function () {
     Route::get('/profile', [ProfileController::class, 'show'])->name('profile.show');
     Route::put('/profile', [ProfileController::class, 'update'])->name('profile.update');
     Route::put('/profile/password', [ProfileController::class, 'updatePassword'])->name('profile.password');
+    Route::get('/profile/activity', [ProfileController::class, 'activity'])->name('profile.activity');
+    Route::get('/profile/sessions', [ProfileController::class, 'sessions'])->name('profile.sessions');
+    Route::delete('/profile/sessions/{sessionId}', [ProfileController::class, 'revokeSession'])->name('profile.sessions.revoke');
 
     // Gestion des documents
     Route::get('/documents', [DocumentController::class, 'index'])->name('documents.index');
@@ -150,6 +153,7 @@ Route::middleware(['auth'])->group(function () {
     Route::get('/notifications', [NotificationController::class, 'index'])->name('notifications.index');
     Route::post('/notifications/{notification}/read', [NotificationController::class, 'markRead'])->name('notifications.read');
     Route::post('/notifications/read-all', [NotificationController::class, 'markAllRead'])->name('notifications.read-all');
+    Route::delete('/notifications/read', [NotificationController::class, 'destroyRead'])->name('notifications.destroy-read');
     Route::get('/notifications/unread-count', [NotificationController::class, 'unreadCount'])->name('notifications.count');
     Route::delete('/notifications/{notification}', [NotificationController::class, 'destroy'])->name('notifications.destroy');
 

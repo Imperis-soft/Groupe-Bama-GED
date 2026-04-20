@@ -27,7 +27,25 @@
             <form action="{{ route('categories.update', $category) }}" method="POST" class="space-y-6">
                 @csrf
                 @method('PUT')
-                
+
+                <div>
+                    <label class="block text-[11px] font-black text-gray-400 uppercase tracking-widest mb-2 ml-1">Catégorie parente</label>
+                    <select name="parent_id"
+                            class="w-full bg-gray-50 border-2 border-gray-50 rounded-2xl px-6 py-4 text-gray-900 font-medium focus:bg-white focus:border-orange-500 focus:ring-0 transition-all">
+                        <option value="">Aucune (catégorie racine)</option>
+                        @foreach($allCategories as $parent)
+                        <option value="{{ $parent->id }}" {{ old('parent_id', $category->parent_id) == $parent->id ? 'selected' : '' }}>
+                            {{ $parent->name }}
+                        </option>
+                        @endforeach
+                    </select>
+                    @if($category->parent)
+                    <p class="text-[10px] text-slate-400 mt-1.5 ml-1">
+                        Parent actuel : <span class="font-bold text-orange-500">{{ $category->parent->name }}</span>
+                    </p>
+                    @endif
+                </div>
+
                 <div>
                     <label class="block text-[11px] font-black text-gray-400 uppercase tracking-widest mb-2 ml-1">Nom de la catégorie</label>
                     <input type="text" name="name" id="name" value="{{ old('name', $category->name) }}" required

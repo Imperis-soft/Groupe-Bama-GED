@@ -20,6 +20,12 @@ return Application::configure(basePath: dirname(__DIR__))
             '/webdav/*',
         ]);
     })
+    ->withSchedule(function (\Illuminate\Console\Scheduling\Schedule $schedule): void {
+        // Nettoyage des documents expirés chaque nuit à 02h00
+        $schedule->command('documents:cleanup-expired')->dailyAt('02:00');
+        // Rappels d'expiration : chaque matin à 08h00
+        $schedule->command('documents:notify-expiring')->dailyAt('08:00');
+    })
     ->withExceptions(function (Exceptions $exceptions): void {
         //
     })->create();

@@ -89,12 +89,17 @@
                 <div>
                     <label class="block text-[9px] font-black text-slate-500 uppercase tracking-widest mb-1.5">Partager avec</label>
                     <select name="shared_with"
-                            class="w-full bg-slate-50 border border-slate-100 rounded-xl px-3 py-2.5 text-xs font-medium text-slate-700 focus:outline-none focus:ring-2 focus:ring-orange-500">
+                            class="w-full bg-slate-50 border {{ $errors->has('shared_with') ? 'border-red-300' : 'border-slate-100' }} rounded-xl px-3 py-2.5 text-xs font-medium text-slate-700 focus:outline-none focus:ring-2 focus:ring-orange-500">
                         <option value="">Sélectionner un utilisateur</option>
                         @foreach($users as $user)
-                        <option value="{{ $user->id }}">{{ $user->full_name }}</option>
+                        <option value="{{ $user->id }}" {{ old('shared_with') == $user->id ? 'selected' : '' }}>{{ $user->full_name }}</option>
                         @endforeach
                     </select>
+                    @error('shared_with')
+                    <p class="mt-1.5 flex items-center gap-1.5 text-[10px] font-bold text-red-600">
+                        <i class="fa-solid fa-circle-exclamation text-[9px]"></i> {{ $message }}
+                    </p>
+                    @enderror
                 </div>
                 <div>
                     <label class="block text-[9px] font-black text-slate-500 uppercase tracking-widest mb-1.5">Niveau d'accès</label>

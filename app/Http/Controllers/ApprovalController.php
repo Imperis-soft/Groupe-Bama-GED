@@ -13,6 +13,9 @@ class ApprovalController extends Controller
 {
     public function index(Document $document)
     {
+        if (!$document->canView()) {
+            abort(403, 'Accès refusé à ce document.');
+        }
         $steps = $document->approvalSteps()->with('approver')->get();
         $users = User::orderBy('full_name')->get();
         return view('documents.approval', compact('document', 'steps', 'users'));

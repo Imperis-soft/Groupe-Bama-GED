@@ -10,10 +10,15 @@ class TrashController extends Controller
 {
     public function index()
     {
-        $documents = Document::onlyTrashed()
-            ->with('category', 'creator')
-            ->latest('deleted_at')
-            ->paginate(20);
+        $user = auth()->user();
+        $query = Document::onlyTrashed()->with('category', 'creator');
+
+        // Non-admin : seulement ses propres documents supprimés
+        if (!$user->hasRole('admin')) {
+            $query->where('creator_id', $user->id);
+        }
+
+        $documents = $query->latest('deleted_at')->paginate(20);
 
         return view('documents.trash', compact('documents'));
     }

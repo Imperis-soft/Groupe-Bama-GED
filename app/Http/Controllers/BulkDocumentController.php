@@ -18,7 +18,7 @@ class BulkDocumentController extends Controller
             'category_id'  => 'nullable|exists:categories,id',
         ]);
 
-        $documents = Document::whereIn('id', $data['document_ids'])->get();
+        $documents = Document::visibleTo()->whereIn('id', $data['document_ids'])->get();
         $service   = app(DocumentArchivalService::class);
         $count     = 0;
 

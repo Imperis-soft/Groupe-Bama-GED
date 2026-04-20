@@ -18,6 +18,7 @@ class Document extends Model
         'reference',
         'title',
         'file_path',
+        'minio_url',
         'version',
         'status',
         'archived_at',
@@ -170,9 +171,13 @@ class Document extends Model
         // Admin ou créateur = toujours oui
         $user = \App\Models\User::find($userId);
         if ($user?->hasRole('admin') || $this->creator_id === $userId) return true;
-        // Sinon vérifier ACL
-        $perm = $this->permissions()->where('user_id', $userId)->first();
-        return $perm && $perm->can_edit && !$perm->isExpired();
+        // Sinon vérifier les partages actifs avec access_level edit
+        return $this->shares()
+            ->where('shared_with', $userId)
+            ->where('access_level', 'edit')
+            ->where('is_active', true)
+            ->where(function ($q) { $q->whereNull('expires_at')->orWhere('expires_at', '>', now()); })
+            ->exists();
     }
 
     // Vérifier si l'utilisateur courant peut approuver
@@ -184,6 +189,47 @@ class Document extends Model
         if ($user?->hasRole('admin')) return true;
         $perm = $this->permissions()->where('user_id', $userId)->first();
         return $perm && $perm->can_approve && !$perm->isExpired();
+    }
+
+    // Scope : documents visibles par un utilisateur donné
+    // - Admin : tous les documents
+    // - Autres : ses propres documents + ceux partagés avec lui (view ou edit)
+    public function scopeVisibleTo($query, ?int $userId = null)
+    {
+        $userId = $userId ?? auth()->id();
+        $user   = \App\Models\User::find($userId);
+
+        if ($user?->hasRole('admin')) {
+            return $query; // admin voit tout
+        }
+
+        return $query->where(function ($q) use ($userId) {
+            // Auteur du document
+            $q->where('creator_id', $userId)
+              // OU partagé avec lui (actif, non expiré)
+              ->orWhereHas('shares', function ($s) use ($userId) {
+                  $s->where('shared_with', $userId)
+                    ->where('is_active', true)
+                    ->where(function ($d) {
+                        $d->whereNull('expires_at')
+                          ->orWhere('expires_at', '>', now());
+                    });
+              });
+        });
+    }
+
+    // Vérifier si l'utilisateur courant peut voir ce document
+    public function canView(?int $userId = null): bool
+    {
+        $userId = $userId ?? auth()->id();
+        if (!$userId) return false;
+        $user = \App\Models\User::find($userId);
+        if ($user?->hasRole('admin') || $this->creator_id === $userId) return true;
+        return $this->shares()
+            ->where('shared_with', $userId)
+            ->where('is_active', true)
+            ->where(function ($q) { $q->whereNull('expires_at')->orWhere('expires_at', '>', now()); })
+            ->exists();
     }
 
     // Favoris

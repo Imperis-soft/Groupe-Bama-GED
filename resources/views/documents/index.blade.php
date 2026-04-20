@@ -169,7 +169,7 @@
                                    ($doc->status === 'review'   ? 'bg-blue-50 text-blue-600' :
                                    ($doc->status === 'archived' ? 'bg-slate-100 text-slate-400' :
                                                                   'bg-amber-50 text-amber-600')) }}">
-                                {{ $doc->status }}
+                                {{ statusLabel($doc->status) }}
                             </span>
                         </div>
                         <div class="col-span-2 flex items-center justify-end gap-1">
@@ -178,6 +178,11 @@
                                class="w-8 h-8 flex items-center justify-center rounded-lg text-slate-400 hover:bg-blue-50 hover:text-blue-600 transition-all">
                                 <i class="fa-solid fa-eye text-xs"></i>
                             </a>
+                            <button @click="previewDocument({{ $doc->id }})"
+                               title="Aperçu rapide"
+                               class="w-8 h-8 flex items-center justify-center rounded-lg text-slate-400 hover:bg-purple-50 hover:text-purple-600 transition-all">
+                                <i class="fa-solid fa-expand text-xs"></i>
+                            </button>
                             <a href="{{ route('documents.download', $doc) }}"
                                title="Télécharger"
                                class="w-8 h-8 flex items-center justify-center rounded-lg text-slate-400 hover:bg-green-50 hover:text-green-600 transition-all">
@@ -218,7 +223,7 @@
                                 <span class="px-1.5 py-0.5 rounded text-[8px] font-bold uppercase
                                     {{ $doc->status === 'approved' ? 'bg-green-50 text-green-600' :
                                        ($doc->status === 'review'   ? 'bg-blue-50 text-blue-600' : 'bg-amber-50 text-amber-600') }}">
-                                    {{ $doc->status }}
+                                    {{ statusLabel($doc->status) }}
                                 </span>
                             </div>
                         </div>
@@ -334,7 +339,19 @@
                     <i class="fa-solid fa-xmark text-sm"></i>
                 </button>
             </div>
-            <form action="{{ route('documents.store') }}" method="POST" enctype="multipart/form-data" class="p-6 space-y-4">
+            <form action="{{ route('documents.store') }}" method="POST" enctype="multipart/form-data" class="p-6 space-y-4"
+                  x-data="{ uploading: false, progress: 0 }"
+                  @submit.prevent="
+                    uploading = true; progress = 0;
+                    const fd = new FormData($el);
+                    const xhr = new XMLHttpRequest();
+                    xhr.open('POST', $el.action);
+                    xhr.setRequestHeader('X-CSRF-TOKEN', document.querySelector('meta[name=csrf-token]').content);
+                    xhr.upload.onprogress = e => { if (e.lengthComputable) progress = Math.round(e.loaded / e.total * 100); };
+                    xhr.onload = () => { if (xhr.status < 400) window.location.href = xhr.responseURL || '{{ route('documents.index') }}'; else { uploading = false; alert('Erreur lors de l\'import.'); } };
+                    xhr.onerror = () => { uploading = false; alert('Erreur réseau.'); };
+                    xhr.send(fd);
+                  ">
                 @csrf
                 <input type="hidden" name="import_mode" value="1">
                 <div>
@@ -344,21 +361,32 @@
                 </div>
                 <div>
                     <label class="block text-[9px] font-black text-slate-500 uppercase tracking-widest mb-1.5">Fichier Word (.docx) <span class="text-red-500">*</span></label>
-                    <div class="border-2 border-dashed border-slate-200 rounded-xl p-6 text-center hover:border-orange-300 transition-colors cursor-pointer"
-                         x-data="{ fname: '' }"
+                    <div class="border-2 border-dashed rounded-xl p-6 text-center cursor-pointer transition-all"
+                         x-data="{ fname: '', dragging: false }"
+                         :class="dragging ? 'border-green-400 bg-green-50' : 'border-slate-200 hover:border-orange-300'"
                          @click="$refs.importFile.click()"
-                         @dragover.prevent
-                         @drop.prevent="fname = $event.dataTransfer.files[0]?.name; $refs.importFile.files = $event.dataTransfer.files">
-                        <input type="file" name="import_file" accept=".docx,.doc" x-ref="importFile"
+                         @dragover.prevent="dragging = true"
+                         @dragleave.prevent="dragging = false"
+                         @drop.prevent="dragging = false; fname = $event.dataTransfer.files[0]?.name; $refs.importFile.files = $event.dataTransfer.files">
+                        <input type="file" name="import_file" accept=".docx,.doc" x-ref="importFile" required
                                @change="fname = $event.target.files[0]?.name" class="hidden">
                         <div x-show="!fname">
-                            <i class="fa-solid fa-cloud-arrow-up text-slate-300 text-2xl mb-2"></i>
-                            <p class="text-xs font-bold text-slate-400">Glisser-déposer ou cliquer</p>
+                            <i class="fa-solid fa-cloud-arrow-up text-slate-300 text-2xl mb-2" :class="dragging && 'text-green-500'"></i>
+                            <p class="text-xs font-bold text-slate-400" :class="dragging && 'text-green-600'">
+                                <span x-show="!dragging">Glisser-déposer ou cliquer</span>
+                                <span x-show="dragging">Déposez le fichier ici</span>
+                            </p>
                             <p class="text-[9px] text-slate-300 mt-1">.docx, .doc — max 50MB</p>
                         </div>
-                        <div x-show="fname" class="flex items-center justify-center gap-2">
-                            <i class="fa-solid fa-file-word text-orange-500 text-lg"></i>
-                            <span class="text-sm font-bold text-slate-700" x-text="fname"></span>
+                        <div x-show="fname" class="flex flex-col items-center gap-2">
+                            <div class="flex items-center gap-2">
+                                <i class="fa-solid fa-file-word text-orange-500 text-lg"></i>
+                                <span class="text-sm font-bold text-slate-700" x-text="fname"></span>
+                            </div>
+                            <button type="button" @click.stop="fname = ''; $refs.importFile.value = ''"
+                                class="text-[9px] text-red-500 hover:text-red-700 font-bold">
+                                <i class="fa-solid fa-xmark mr-1"></i>Retirer
+                            </button>
                         </div>
                     </div>
                 </div>
@@ -382,10 +410,26 @@
                     </div>
                 </div>
                 <input type="hidden" name="retention_years" value="5">
+
+                {{-- Barre de progression --}}
+                <div x-show="uploading" class="space-y-1.5">
+                    <div class="flex items-center justify-between">
+                        <span class="text-[9px] font-bold text-slate-500">Import en cours...</span>
+                        <span class="text-[9px] font-black text-orange-600" x-text="progress + '%'"></span>
+                    </div>
+                    <div class="w-full bg-slate-100 rounded-full h-2 overflow-hidden">
+                        <div class="bg-orange-500 h-2 rounded-full transition-all duration-200"
+                             :style="'width: ' + progress + '%'"></div>
+                    </div>
+                </div>
+
                 <div class="flex gap-3 pt-1">
-                    <button type="button" @click="uploadModal = false" class="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-600 py-3 rounded-xl font-bold text-xs uppercase tracking-wider transition-all">Annuler</button>
-                    <button type="submit" class="flex-1 bg-orange-600 hover:bg-orange-500 active:scale-95 text-white py-3 rounded-xl font-black text-xs uppercase tracking-widest shadow-lg shadow-orange-200 transition-all">
-                        <i class="fa-solid fa-cloud-arrow-up mr-1.5"></i> Importer
+                    <button type="button" @click="uploadModal = false" :disabled="uploading"
+                        class="flex-1 bg-slate-100 hover:bg-slate-200 disabled:opacity-50 text-slate-600 py-3 rounded-xl font-bold text-xs uppercase tracking-wider transition-all">Annuler</button>
+                    <button type="submit" :disabled="uploading"
+                        class="flex-1 bg-orange-600 hover:bg-orange-500 active:scale-95 disabled:opacity-60 disabled:cursor-not-allowed text-white py-3 rounded-xl font-black text-xs uppercase tracking-widest shadow-lg shadow-orange-200 transition-all">
+                        <span x-show="!uploading"><i class="fa-solid fa-cloud-arrow-up mr-1.5"></i> Importer</span>
+                        <span x-show="uploading"><i class="fa-solid fa-spinner fa-spin mr-1.5"></i> Envoi...</span>
                     </button>
                 </div>
             </form>
@@ -547,13 +591,12 @@ function documentIndex() {
 
         async previewDocument(documentId) {
             try {
-                const response = await fetch(`/api/documents/${documentId}`);
-                const docData  = await response.json();
-                const modal    = document.querySelector('[x-data="documentPreview()"]');
-                if (modal && modal._x_dataStack) {
-                    modal._x_dataStack[0].document = docData;
-                    modal._x_dataStack[0].openModal();
-                }
+                const response = await fetch(`/api/documents/${documentId}`, {
+                    headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' }
+                });
+                const docData = await response.json();
+                // Dispatch un event Alpine global pour ouvrir la modal
+                window.dispatchEvent(new CustomEvent('open-preview', { detail: docData }));
             } catch (error) { console.error('Erreur preview:', error); }
         }
     }

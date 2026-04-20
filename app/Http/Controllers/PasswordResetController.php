@@ -3,10 +3,11 @@
 namespace App\Http\Controllers;
 
 use App\Models\User;
-use App\Services\NotificationService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 
 class PasswordResetController extends Controller
@@ -31,16 +32,48 @@ class PasswordResetController extends Controller
         $user     = User::where('email', $request->email)->first();
         $resetUrl = url('/reset-password/' . $token . '?email=' . urlencode($request->email));
 
-        // Envoyer via NotificationService (email si configuré, sinon in-app)
-        app(NotificationService::class)->notify(
-            $user,
-            'password_reset',
-            'Réinitialisation de mot de passe',
-            "Cliquez sur le lien suivant pour réinitialiser votre mot de passe. Ce lien expire dans 60 minutes.",
-            $resetUrl
-        );
+        $this->sendResetEmail($user, $resetUrl);
 
         return back()->with('success', 'Si cet email existe, un lien de réinitialisation a été envoyé.');
+    }
+
+    private function sendResetEmail(User $user, string $resetUrl): void
+    {
+        try {
+            // Charger les settings SMTP depuis la DB
+            $settings = DB::table('settings')->pluck('value', 'key')->toArray();
+
+            $mailEnabled = ($settings['mail_enabled'] ?? '0') === '1'
+                && !empty($settings['mail_host'] ?? '');
+
+            if (!$mailEnabled) {
+                Log::info('GED: email désactivé, lien reset = ' . $resetUrl);
+                return;
+            }
+
+            config([
+                'mail.default'                 => 'smtp',
+                'mail.mailers.smtp.host'       => $settings['mail_host'],
+                'mail.mailers.smtp.port'       => $settings['mail_port'] ?? 587,
+                'mail.mailers.smtp.username'   => $settings['mail_username'] ?? '',
+                'mail.mailers.smtp.password'   => $settings['mail_password'] ?? '',
+                'mail.mailers.smtp.encryption' => $settings['mail_encryption'] ?? 'tls',
+                'mail.from.address'            => $settings['mail_from_address'] ?? $settings['mail_username'] ?? '',
+                'mail.from.name'               => $settings['mail_from_name'] ?? 'Groupe Bama GED',
+            ]);
+
+            Mail::send('emails.password-reset', [
+                'recipientName' => $user->full_name,
+                'resetUrl'      => $resetUrl,
+                'subject'       => 'Réinitialisation de mot de passe',
+            ], function ($mail) use ($user) {
+                $mail->to($user->email, $user->full_name)
+                     ->subject('[GED] Réinitialisation de votre mot de passe');
+            });
+
+        } catch (\Exception $e) {
+            Log::warning('GED password reset email failed: ' . $e->getMessage());
+        }
     }
 
     public function showReset(Request $request, string $token)

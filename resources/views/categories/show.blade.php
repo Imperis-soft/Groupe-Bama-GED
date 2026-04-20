@@ -153,7 +153,7 @@
                                 {{ $doc->status === 'approved' ? 'bg-green-50 text-green-600' :
                                    ($doc->status === 'review'   ? 'bg-blue-50 text-blue-600' :
                                    ($doc->status === 'archived' ? 'bg-slate-100 text-slate-400' : 'bg-amber-50 text-amber-600')) }}">
-                                {{ $doc->status }}
+                                {{ statusLabel($doc->status) }}
                             </span>
                         </td>
                         <td class="px-6 py-4">
@@ -190,7 +190,7 @@
                 <span class="px-2 py-0.5 rounded text-[8px] font-black uppercase shrink-0
                     {{ $doc->status === 'approved' ? 'bg-green-50 text-green-600' :
                        ($doc->status === 'review'   ? 'bg-blue-50 text-blue-600' : 'bg-amber-50 text-amber-600') }}">
-                    {{ $doc->status }}
+                    {{ statusLabel($doc->status) }}
                 </span>
             </a>
             @endforeach

@@ -103,7 +103,21 @@
                     <h2 class="text-xs font-black text-slate-900 uppercase tracking-widest">Changer le mot de passe</h2>
                 </div>
 
-                <form action="{{ route('profile.password') }}" method="POST" class="p-5 space-y-4">
+                <form action="{{ route('profile.password') }}" method="POST" class="p-5 space-y-4"
+                      x-data="{ strength: 0, strengthLabel: '', strengthColor: '',
+                        checkStrength(v) {
+                            let s = 0;
+                            if (v.length >= 8)  s++;
+                            if (/[A-Z]/.test(v)) s++;
+                            if (/[0-9]/.test(v)) s++;
+                            if (/[^A-Za-z0-9]/.test(v)) s++;
+                            this.strength = s;
+                            const labels = ['', 'Faible', 'Moyen', 'Bon', 'Fort'];
+                            const colors = ['', 'bg-red-500', 'bg-amber-500', 'bg-blue-500', 'bg-green-500'];
+                            this.strengthLabel = labels[s] || '';
+                            this.strengthColor = colors[s] || '';
+                        }
+                      }">
                     @csrf
                     @method('PUT')
 
@@ -126,7 +140,23 @@
                             </label>
                             <input type="password" name="password" required
                                    placeholder="Min. 8 caractères"
+                                   @input="checkStrength($event.target.value)"
                                    class="w-full bg-slate-50 border border-slate-100 rounded-xl px-4 py-2.5 text-sm font-medium text-slate-800 placeholder-slate-300 focus:outline-none focus:ring-2 focus:ring-orange-500 transition-all @error('password') border-red-300 @enderror">
+                            {{-- Barre de force --}}
+                            <div x-show="strength > 0" class="mt-2 space-y-1">
+                                <div class="flex gap-1">
+                                    <template x-for="i in 4" :key="i">
+                                        <div class="h-1.5 flex-1 rounded-full transition-all"
+                                             :class="i <= strength ? strengthColor : 'bg-slate-100'"></div>
+                                    </template>
+                                </div>
+                                <p class="text-[9px] font-bold" :class="{
+                                    'text-red-500': strength === 1,
+                                    'text-amber-500': strength === 2,
+                                    'text-blue-500': strength === 3,
+                                    'text-green-500': strength === 4
+                                }" x-text="strengthLabel"></p>
+                            </div>
                             @error('password')
                                 <p class="text-red-500 text-[9px] font-bold mt-1">{{ $message }}</p>
                             @enderror
@@ -161,7 +191,7 @@
                 <div class="space-y-3">
                     <div class="flex justify-between items-center text-xs">
                         <span class="text-slate-400 font-medium">ID</span>
-                        <span class="font-mono font-bold text-slate-600">#{{ $user->id }}</span>
+                        <span class="font-mono font-bold text-slate-600">#Bama-P{{ $user->id }}</span>
                     </div>
                     <div class="h-px bg-slate-50"></div>
                     <div class="flex justify-between items-center text-xs">
@@ -247,6 +277,63 @@
                     @endforeach
                 </div>
                 @endif
+            </div>
+
+            {{-- Statistiques personnelles --}}
+            @php
+                $myDocsCount     = \App\Models\Document::where('creator_id', $user->id)->count();
+                $myActionsCount  = \App\Models\DocumentAuditLog::where('user_id', $user->id)->count();
+                $myApprovCount   = \App\Models\ApprovalStep::where('approver_id', $user->id)->where('status', 'approved')->count();
+                $myCommentsCount = \App\Models\DocumentComment::where('user_id', $user->id)->count();
+            @endphp
+            <div class="bg-white rounded-2xl border border-slate-100 shadow-sm p-5">
+                <div class="flex items-center justify-between mb-3">
+                    <h2 class="text-[10px] font-black text-slate-400 uppercase tracking-widest">Mes statistiques</h2>
+                    <a href="{{ route('profile.activity') }}"
+                       class="text-[9px] font-black text-orange-600 hover:underline uppercase tracking-wider">
+                        Voir tout <i class="fa-solid fa-arrow-right text-[8px]"></i>
+                    </a>
+                </div>
+                <div class="grid grid-cols-2 gap-2">
+                    <div class="bg-slate-50 rounded-xl p-3 text-center">
+                        <p class="text-xl font-black text-slate-900">{{ $myDocsCount }}</p>
+                        <p class="text-[8px] font-black text-slate-400 uppercase tracking-wider mt-0.5">Documents créés</p>
+                    </div>
+                    <div class="bg-slate-50 rounded-xl p-3 text-center">
+                        <p class="text-xl font-black text-blue-600">{{ $myActionsCount }}</p>
+                        <p class="text-[8px] font-black text-slate-400 uppercase tracking-wider mt-0.5">Actions totales</p>
+                    </div>
+                    <div class="bg-slate-50 rounded-xl p-3 text-center">
+                        <p class="text-xl font-black text-green-600">{{ $myApprovCount }}</p>
+                        <p class="text-[8px] font-black text-slate-400 uppercase tracking-wider mt-0.5">Approbations</p>
+                    </div>
+                    <div class="bg-slate-50 rounded-xl p-3 text-center">
+                        <p class="text-xl font-black text-purple-600">{{ $myCommentsCount }}</p>
+                        <p class="text-[8px] font-black text-slate-400 uppercase tracking-wider mt-0.5">Commentaires</p>
+                    </div>
+                </div>
+            </div>
+
+            {{-- Liens rapides --}}
+            <div class="bg-white rounded-2xl border border-slate-100 shadow-sm p-5">
+                <h2 class="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3">Accès rapide</h2>
+                <div class="space-y-2">
+                    <a href="{{ route('profile.activity') }}"
+                       class="flex items-center gap-3 w-full px-3 py-2.5 rounded-xl bg-slate-50 hover:bg-orange-50 hover:text-orange-700 text-slate-600 text-xs font-bold transition-all">
+                        <i class="fa-solid fa-clock-rotate-left text-orange-400 text-[10px]"></i>
+                        Mon activité
+                    </a>
+                    <a href="{{ route('profile.sessions') }}"
+                       class="flex items-center gap-3 w-full px-3 py-2.5 rounded-xl bg-slate-50 hover:bg-blue-50 hover:text-blue-700 text-slate-600 text-xs font-bold transition-all">
+                        <i class="fa-solid fa-desktop text-blue-400 text-[10px]"></i>
+                        Sessions actives
+                    </a>
+                    <a href="{{ route('notifications.index') }}"
+                       class="flex items-center gap-3 w-full px-3 py-2.5 rounded-xl bg-slate-50 hover:bg-purple-50 hover:text-purple-700 text-slate-600 text-xs font-bold transition-all">
+                        <i class="fa-solid fa-bell text-purple-400 text-[10px]"></i>
+                        Mes notifications
+                    </a>
+                </div>
             </div>
 
         </div>

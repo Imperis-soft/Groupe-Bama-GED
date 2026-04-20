@@ -11,6 +11,10 @@ class DocumentCommentController extends Controller
 {
     public function store(Request $request, Document $document)
     {
+        if (!$document->canView()) {
+            abort(403, 'Accès refusé à ce document.');
+        }
+
         $data = $request->validate([
             'content'     => 'required|string|max:2000',
             'parent_id'   => 'nullable|exists:document_comments,id',

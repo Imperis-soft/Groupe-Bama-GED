@@ -14,6 +14,8 @@
         ::-webkit-scrollbar-track { background: transparent; }
         ::-webkit-scrollbar-thumb { background: #e2e8f0; border-radius: 99px; }
         body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; }
+        .scrollbar-none { scrollbar-width: none; -ms-overflow-style: none; }
+        .scrollbar-none::-webkit-scrollbar { display: none; }
     </style>
     <script>
         function toastNotifications() {
@@ -37,7 +39,8 @@
         }
     </script>
 </head>
-<body class="h-full bg-slate-50 antialiased" x-data="{ sidebarOpen: false }">
+<body class="h-full bg-slate-50 antialiased" x-data="{ sidebarOpen: false, sidebarCollapsed: localStorage.getItem('sidebarCollapsed') === 'true' }"
+      x-init="$watch('sidebarCollapsed', v => localStorage.setItem('sidebarCollapsed', v))">
 
 <div class="flex h-full">
 
@@ -57,18 +60,28 @@
     </div>
 
     {{-- Sidebar --}}
-    <aside class="fixed inset-y-0 left-0 z-50 flex w-64 flex-col bg-white border-r border-slate-100 transition-transform duration-300 lg:static lg:translate-x-0"
-           :class="sidebarOpen ? 'translate-x-0 shadow-2xl' : '-translate-x-full lg:translate-x-0'">
+    <aside class="fixed inset-y-0 left-0 z-50 flex flex-col bg-white border-r border-slate-100 transition-all duration-300 lg:static lg:translate-x-0"
+           :class="[
+               sidebarOpen ? 'translate-x-0 shadow-2xl' : '-translate-x-full lg:translate-x-0',
+               sidebarCollapsed ? 'w-16' : 'w-64'
+           ]">
 
         {{-- Logo --}}
         <div class="flex h-16 shrink-0 items-center gap-3 px-5 border-b border-slate-100">
             <div class="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-orange-600 shadow-lg shadow-orange-200">
                 <i class="fa-solid fa-file-shield text-white text-sm"></i>
             </div>
-            <div>
+            <div x-show="!sidebarCollapsed" x-transition.opacity>
                 <p class="text-sm font-black text-slate-900 tracking-tight leading-none">Groupe Bama</p>
                 <p class="text-[9px] font-bold text-slate-400 uppercase tracking-widest mt-0.5">GED Platform</p>
             </div>
+            {{-- Bouton collapse desktop --}}
+            <button @click="sidebarCollapsed = !sidebarCollapsed"
+                class="hidden lg:flex ml-auto h-7 w-7 items-center justify-center rounded-lg text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition shrink-0"
+                :title="sidebarCollapsed ? 'Agrandir' : 'Réduire'">
+                <i class="fa-solid text-xs transition-transform duration-300"
+                   :class="sidebarCollapsed ? 'fa-chevron-right' : 'fa-chevron-left'"></i>
+            </button>
             <button @click="sidebarOpen = false"
                 class="ml-auto flex h-7 w-7 items-center justify-center rounded-lg text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition lg:hidden">
                 <i class="fa-solid fa-xmark text-sm"></i>
@@ -79,7 +92,7 @@
         <nav class="flex-1 overflow-y-auto px-3 py-5 space-y-0.5">
 
             {{-- Recherche rapide --}}
-            <form action="{{ route('documents.index') }}" method="GET" class="mb-3">
+            <form action="{{ route('documents.index') }}" method="GET" class="mb-3" x-show="!sidebarCollapsed" x-transition.opacity>
                 <div class="relative">
                     <i class="fa-solid fa-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-slate-300 text-[10px]"></i>
                     <input type="text" name="q" placeholder="Recherche rapide..."
@@ -87,26 +100,32 @@
                 </div>
             </form>
 
-            <p class="text-[9px] font-black text-slate-400 uppercase tracking-[0.2em] px-3 pb-2">Principal</p>
+            <p x-show="!sidebarCollapsed" class="text-[9px] font-black text-slate-400 uppercase tracking-[0.2em] px-3 pb-2">Principal</p>
 
             <a href="{{ route('dashboard') }}"
-               class="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold transition-all
-                      {{ Request::is('dashboard*') ? 'bg-orange-500 text-white shadow-md shadow-orange-200' : 'text-slate-500 hover:bg-slate-100 hover:text-slate-900' }}">
-                <i class="fa-solid fa-chart-pie w-4 text-center text-[13px]"></i>
-                <span>Tableau de bord</span>
-                @if(Request::is('dashboard*'))
-                    <span class="ml-auto w-1.5 h-1.5 rounded-full bg-white/60"></span>
-                @endif
+               class="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold transition-all"
+               :class="[
+                   '{{ Request::is('dashboard*') ? 'bg-orange-500 text-white shadow-md shadow-orange-200' : 'text-slate-500 hover:bg-slate-100 hover:text-slate-900' }}',
+                   sidebarCollapsed ? 'justify-center' : ''
+               ]"
+               :title="sidebarCollapsed ? 'Tableau de bord' : ''">
+                <i class="fa-solid fa-chart-pie w-4 text-center text-[13px] shrink-0"></i>
+                <span x-show="!sidebarCollapsed" x-transition.opacity>Tableau de bord</span>
             </a>
 
             <a href="{{ route('documents.index') }}"
-               class="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold transition-all
-                      {{ Request::is('documents*') && !Request::is('documents/advanced-search') ? 'bg-orange-500 text-white shadow-md shadow-orange-200' : 'text-slate-500 hover:bg-slate-100 hover:text-slate-900' }}">
-                <i class="fa-solid fa-file-lines w-4 text-center text-[13px]"></i>
-                <span>Documents</span>
+               class="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold transition-all"
+               :class="[
+                   '{{ Request::is('documents*') && !Request::is('documents/advanced-search') ? 'bg-orange-500 text-white shadow-md shadow-orange-200' : 'text-slate-500 hover:bg-slate-100 hover:text-slate-900' }}',
+                   sidebarCollapsed ? 'justify-center' : ''
+               ]"
+               :title="sidebarCollapsed ? 'Documents' : ''">
+                <i class="fa-solid fa-file-lines w-4 text-center text-[13px] shrink-0"></i>
+                <span x-show="!sidebarCollapsed" x-transition.opacity>Documents</span>
             </a>
 
             <a href="{{ route('documents.advanced-search') }}"
+               x-show="!sidebarCollapsed"
                class="flex items-center gap-3 pl-9 pr-3 py-2 rounded-xl text-xs font-semibold transition-all
                       {{ Request::is('documents/advanced-search') ? 'bg-orange-500 text-white shadow-md shadow-orange-200' : 'text-slate-400 hover:bg-slate-100 hover:text-slate-700' }}">
                 <i class="fa-solid fa-magnifying-glass w-3 text-center"></i>
@@ -114,68 +133,99 @@
             </a>
 
             <a href="{{ route('documents.favorites') }}"
-               class="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold transition-all
-                      {{ Request::is('favorites*') ? 'bg-orange-500 text-white shadow-md shadow-orange-200' : 'text-slate-500 hover:bg-slate-100 hover:text-slate-900' }}">
-                <i class="fa-solid fa-star w-4 text-center text-[13px]"></i>
-                <span>Favoris</span>
+               class="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold transition-all"
+               :class="[
+                   '{{ Request::is('favorites*') ? 'bg-orange-500 text-white shadow-md shadow-orange-200' : 'text-slate-500 hover:bg-slate-100 hover:text-slate-900' }}',
+                   sidebarCollapsed ? 'justify-center' : ''
+               ]"
+               :title="sidebarCollapsed ? 'Favoris' : ''">
+                <i class="fa-solid fa-star w-4 text-center text-[13px] shrink-0"></i>
+                <span x-show="!sidebarCollapsed" x-transition.opacity>Favoris</span>
             </a>
 
             <a href="{{ route('categories.index') }}"
-               class="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold transition-all
-                      {{ Request::is('categories*') ? 'bg-orange-500 text-white shadow-md shadow-orange-200' : 'text-slate-500 hover:bg-slate-100 hover:text-slate-900' }}">
-                <i class="fa-solid fa-folder-tree w-4 text-center text-[13px]"></i>
-                <span>Catégories</span>
+               class="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold transition-all"
+               :class="[
+                   '{{ Request::is('categories*') ? 'bg-orange-500 text-white shadow-md shadow-orange-200' : 'text-slate-500 hover:bg-slate-100 hover:text-slate-900' }}',
+                   sidebarCollapsed ? 'justify-center' : ''
+               ]"
+               :title="sidebarCollapsed ? 'Catégories' : ''">
+                <i class="fa-solid fa-folder-tree w-4 text-center text-[13px] shrink-0"></i>
+                <span x-show="!sidebarCollapsed" x-transition.opacity>Catégories</span>
             </a>
 
-            <div class="pt-4 pb-2">
+            <div class="pt-4 pb-2" x-show="!sidebarCollapsed">
                 <p class="text-[9px] font-black text-slate-400 uppercase tracking-[0.2em] px-3">Administration</p>
             </div>
+            <div class="pt-4 pb-2" x-show="sidebarCollapsed"><div class="h-px bg-slate-100 mx-2"></div></div>
 
             <a href="{{ route('users.index') }}"
-               class="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold transition-all
-                      {{ Request::is('users*') ? 'bg-orange-500 text-white shadow-md shadow-orange-200' : 'text-slate-500 hover:bg-slate-100 hover:text-slate-900' }}">
-                <i class="fa-solid fa-users w-4 text-center text-[13px]"></i>
-                <span>Utilisateurs</span>
+               class="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold transition-all"
+               :class="[
+                   '{{ Request::is('users*') ? 'bg-orange-500 text-white shadow-md shadow-orange-200' : 'text-slate-500 hover:bg-slate-100 hover:text-slate-900' }}',
+                   sidebarCollapsed ? 'justify-center' : ''
+               ]"
+               :title="sidebarCollapsed ? 'Utilisateurs' : ''">
+                <i class="fa-solid fa-users w-4 text-center text-[13px] shrink-0"></i>
+                <span x-show="!sidebarCollapsed" x-transition.opacity>Utilisateurs</span>
             </a>
 
             <a href="{{ route('settings.index') }}"
-               class="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold transition-all
-                      {{ Request::is('settings*') ? 'bg-orange-500 text-white shadow-md shadow-orange-200' : 'text-slate-500 hover:bg-slate-100 hover:text-slate-900' }}">
-                <i class="fa-solid fa-sliders w-4 text-center text-[13px]"></i>
-                <span>Configuration</span>
+               class="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold transition-all"
+               :class="[
+                   '{{ Request::is('settings*') ? 'bg-orange-500 text-white shadow-md shadow-orange-200' : 'text-slate-500 hover:bg-slate-100 hover:text-slate-900' }}',
+                   sidebarCollapsed ? 'justify-center' : ''
+               ]"
+               :title="sidebarCollapsed ? 'Configuration' : ''">
+                <i class="fa-solid fa-sliders w-4 text-center text-[13px] shrink-0"></i>
+                <span x-show="!sidebarCollapsed" x-transition.opacity>Configuration</span>
             </a>
 
             @if(auth()->user()->hasRole('admin'))
             <a href="{{ route('reports.index') }}"
-               class="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold transition-all
-                      {{ Request::is('reports*') ? 'bg-orange-500 text-white shadow-md shadow-orange-200' : 'text-slate-500 hover:bg-slate-100 hover:text-slate-900' }}">
-                <i class="fa-solid fa-chart-bar w-4 text-center text-[13px]"></i>
-                <span>Rapports</span>
+               class="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold transition-all"
+               :class="[
+                   '{{ Request::is('reports*') ? 'bg-orange-500 text-white shadow-md shadow-orange-200' : 'text-slate-500 hover:bg-slate-100 hover:text-slate-900' }}',
+                   sidebarCollapsed ? 'justify-center' : ''
+               ]"
+               :title="sidebarCollapsed ? 'Rapports' : ''">
+                <i class="fa-solid fa-chart-bar w-4 text-center text-[13px] shrink-0"></i>
+                <span x-show="!sidebarCollapsed" x-transition.opacity>Rapports</span>
             </a>
             <a href="{{ route('trash.index') }}"
-               class="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold transition-all
-                      {{ Request::is('trash*') ? 'bg-orange-500 text-white shadow-md shadow-orange-200' : 'text-slate-500 hover:bg-slate-100 hover:text-slate-900' }}">
-                <i class="fa-solid fa-trash-can w-4 text-center text-[13px]"></i>
-                <span>Corbeille</span>
+               class="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold transition-all"
+               :class="[
+                   '{{ Request::is('trash*') ? 'bg-orange-500 text-white shadow-md shadow-orange-200' : 'text-slate-500 hover:bg-slate-100 hover:text-slate-900' }}',
+                   sidebarCollapsed ? 'justify-center' : ''
+               ]"
+               :title="sidebarCollapsed ? 'Corbeille' : ''">
+                <i class="fa-solid fa-trash-can w-4 text-center text-[13px] shrink-0"></i>
+                <span x-show="!sidebarCollapsed" x-transition.opacity>Corbeille</span>
                 @php $trashCount = \App\Models\Document::onlyTrashed()->count(); @endphp
                 @if($trashCount > 0)
-                <span class="ml-auto bg-red-100 text-red-600 text-[8px] font-black rounded-full px-1.5 py-0.5">{{ $trashCount }}</span>
+                <span x-show="!sidebarCollapsed" class="ml-auto bg-red-100 text-red-600 text-[8px] font-black rounded-full px-1.5 py-0.5">{{ $trashCount }}</span>
                 @endif
             </a>
             @endif
 
-            <div class="pt-4 pb-2">
+            <div class="pt-4 pb-2" x-show="!sidebarCollapsed">
                 <p class="text-[9px] font-black text-slate-400 uppercase tracking-[0.2em] px-3">Compte</p>
             </div>
+            <div class="pt-2 pb-1" x-show="sidebarCollapsed"><div class="h-px bg-slate-100 mx-2"></div></div>
 
             <a href="{{ route('notifications.index') }}"
-               class="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold transition-all
-                      {{ Request::is('notifications*') ? 'bg-orange-500 text-white shadow-md shadow-orange-200' : 'text-slate-500 hover:bg-slate-100 hover:text-slate-900' }}">
-                <i class="fa-solid fa-bell w-4 text-center text-[13px]"></i>
-                <span>Notifications</span>
+               class="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold transition-all"
+               :class="[
+                   '{{ Request::is('notifications*') ? 'bg-orange-500 text-white shadow-md shadow-orange-200' : 'text-slate-500 hover:bg-slate-100 hover:text-slate-900' }}',
+                   sidebarCollapsed ? 'justify-center' : ''
+               ]"
+               :title="sidebarCollapsed ? 'Notifications' : ''">
+                <i class="fa-solid fa-bell w-4 text-center text-[13px] shrink-0"></i>
+                <span x-show="!sidebarCollapsed" x-transition.opacity>Notifications</span>
                 @php $unread = \App\Models\GedNotification::where('user_id', auth()->id())->where('is_read', false)->count(); @endphp
                 @if($unread > 0)
-                <span id="notif-badge" class="ml-auto bg-red-500 text-white text-[8px] font-black rounded-full min-w-[16px] h-4 px-1 flex items-center justify-center">
+                <span id="notif-badge" class="ml-auto bg-red-500 text-white text-[8px] font-black rounded-full min-w-[16px] h-4 px-1 flex items-center justify-center"
+                      :class="sidebarCollapsed ? 'absolute top-1 right-1 ml-0' : ''">
                     {{ $unread > 9 ? '9+' : $unread }}
                 </span>
                 @else
@@ -184,25 +234,30 @@
             </a>
 
             <a href="{{ route('profile.show') }}"
-               class="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold transition-all
-                      {{ Request::is('profile*') ? 'bg-orange-500 text-white shadow-md shadow-orange-200' : 'text-slate-500 hover:bg-slate-100 hover:text-slate-900' }}">
-                <i class="fa-solid fa-circle-user w-4 text-center text-[13px]"></i>
-                <span>Mon profil</span>
+               class="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold transition-all"
+               :class="[
+                   '{{ Request::is('profile*') ? 'bg-orange-500 text-white shadow-md shadow-orange-200' : 'text-slate-500 hover:bg-slate-100 hover:text-slate-900' }}',
+                   sidebarCollapsed ? 'justify-center' : ''
+               ]"
+               :title="sidebarCollapsed ? 'Mon profil' : ''">
+                <i class="fa-solid fa-circle-user w-4 text-center text-[13px] shrink-0"></i>
+                <span x-show="!sidebarCollapsed" x-transition.opacity>Mon profil</span>
             </a>
 
         </nav>
 
         {{-- User card --}}
         <div class="shrink-0 p-3 border-t border-slate-100">
-            <div class="flex items-center gap-3 rounded-xl bg-slate-50 border border-slate-100 px-3 py-2.5">
+            <div class="flex items-center gap-3 rounded-xl bg-slate-50 border border-slate-100 px-3 py-2.5"
+                 :class="sidebarCollapsed ? 'justify-center px-2' : ''">
                 <div class="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-orange-100 text-orange-600 font-black text-sm select-none">
                     {{ strtoupper(substr(auth()->user()->full_name, 0, 1)) }}
                 </div>
-                <div class="min-w-0 flex-1">
+                <div class="min-w-0 flex-1" x-show="!sidebarCollapsed" x-transition.opacity>
                     <p class="truncate text-xs font-bold text-slate-800 leading-tight">{{ auth()->user()->full_name }}</p>
                     <p class="truncate text-[9px] text-slate-400 mt-0.5">{{ auth()->user()->email }}</p>
                 </div>
-                <form action="{{ route('logout') }}" method="POST">
+                <form action="{{ route('logout') }}" method="POST" x-show="!sidebarCollapsed">
                     @csrf
                     <button type="submit" title="Déconnexion"
                         class="flex h-7 w-7 items-center justify-center rounded-lg text-slate-400 hover:bg-red-50 hover:text-red-500 transition-colors">
@@ -451,7 +506,7 @@ function gedGuide() {
             icon: 'fa-file-lines',
             items: [
                 { icon: 'fa-plus',         color: 'bg-green-100',  iconColor: 'text-green-500',  title: 'Créer un document',  desc: 'Cliquez sur "Nouveau" dans la liste des documents. Un DOCX avec QR code est généré automatiquement.' },
-                { icon: 'fa-pen',          color: 'bg-blue-100',   iconColor: 'text-blue-500',   title: 'Éditer en ligne',    desc: 'Modifiez le contenu directement dans le navigateur sans téléchargement.' },
+                { icon: 'fa-pen',          color: 'bg-blue-100',   iconColor: 'text-blue-500',   title: 'Modifier',           desc: 'Modifiez les métadonnées (titre, catégorie, tags) depuis la page du document.' },
                 { icon: 'fa-brands fa-microsoft', color: 'bg-orange-100', iconColor: 'text-orange-500', title: 'Éditer dans Word', desc: 'Téléchargez, modifiez dans Word, puis réimportez via le panneau "Éditer dans Word".' },
                 { icon: 'fa-box-archive',  color: 'bg-amber-100',  iconColor: 'text-amber-500',  title: 'Archiver',           desc: 'Archivez les documents obsolètes — ils restent consultables mais ne sont plus actifs.' },
             ],
@@ -500,7 +555,7 @@ function gedGuide() {
             icon: 'fa-file-lines',
             items: [
                 { icon: 'fa-plus',         color: 'bg-green-100',  iconColor: 'text-green-500',  title: 'Nouveau document',   desc: 'Documents → "Nouveau" → remplissez le titre et la catégorie → le fichier DOCX est créé automatiquement.' },
-                { icon: 'fa-pen',          color: 'bg-blue-100',   iconColor: 'text-blue-500',   title: 'Éditer en ligne',    desc: 'Cliquez sur "Éditer en ligne" pour modifier le contenu directement dans le navigateur.' },
+                { icon: 'fa-pen',          color: 'bg-blue-100',   iconColor: 'text-blue-500',   title: 'Modifier',           desc: 'Cliquez sur "Modifier" pour mettre à jour les métadonnées du document.' },
                 { icon: 'fa-brands fa-microsoft', color: 'bg-orange-100', iconColor: 'text-orange-500', title: 'Éditer dans Word', desc: 'Téléchargez → modifiez dans Word → réimportez via le panneau orange sur la page du document.' },
             ],
             tip: 'Après modification dans Word, glissez-déposez le fichier dans la zone "Étape 3" pour créer une nouvelle version.'

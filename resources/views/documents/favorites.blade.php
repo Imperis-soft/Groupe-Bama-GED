@@ -41,7 +41,7 @@
                 <span class="px-2.5 py-1 rounded-lg text-[9px] font-black uppercase shrink-0
                     {{ $doc->status === 'approved' ? 'bg-green-50 text-green-600' :
                        ($doc->status === 'review'   ? 'bg-blue-50 text-blue-600' : 'bg-amber-50 text-amber-600') }}">
-                    {{ $doc->status }}
+                    {{ statusLabel($doc->status) }}
                 </span>
                 <form action="{{ route('documents.favorite', $doc) }}" method="POST" class="inline shrink-0">
                     @csrf

@@ -1,0 +1,25 @@
+[req]
+default_bits       = 2048
+prompt             = no
+default_md         = sha256
+distinguished_name = dn
+x509_extensions    = v3_req
+
+[dn]
+C  = ML
+ST = Bamako
+L  = Bamako
+O  = Groupe Bama
+OU = GED
+CN = 192.168.1.246
+
+[v3_req]
+subjectAltName = @alt_names
+keyUsage = critical, digitalSignature, keyEncipherment
+extendedKeyUsage = serverAuth
+basicConstraints = CA:FALSE
+
+[alt_names]
+IP.1 = 192.168.1.246
+IP.2 = 127.0.0.1
+DNS.1 = localhost

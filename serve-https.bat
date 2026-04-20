@@ -12,5 +12,5 @@ start "Laravel" php artisan serve --host=127.0.0.1 --port=8000
 :: Attendre 2 secondes que Laravel demarre
 timeout /t 2 /nobreak > nul
 
-:: Lancer Caddy (proxy HTTPS)
+:: Lancer Caddy (proxy HTTPS) - necessite droits admin pour port 443
 "%USERPROFILE%\bin\caddy.exe" run --config Caddyfile

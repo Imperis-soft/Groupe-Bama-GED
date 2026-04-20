@@ -35,6 +35,7 @@
     commentContent: '',
     replyTo: null,
     replyContent: '',
+    ooLoading: false,
 
     async toggleFav() {
         this.favLoading = true;
@@ -53,7 +54,7 @@
             headers: { 'X-CSRF-TOKEN': document.querySelector('meta[name=csrf-token]').content, 'Accept': 'application/json' }
         });
         if (res.ok) { this.lockStatus = 'mine'; }
-        else { const d = await res.json(); alert('Verrouill� par ' + d.locked_by); }
+        else { const d = await res.json(); alert('Verrouillé par ' + d.locked_by); }
     },
 
     async releaseLock() {
@@ -62,262 +63,283 @@
             headers: { 'X-CSRF-TOKEN': document.querySelector('meta[name=csrf-token]').content }
         });
         this.lockStatus = 'free';
+    },
+
+    async openOnlyOffice() {
+        this.ooLoading = true;
+        try {
+            const res = await fetch('{{ route('documents.edit-online', $document) }}', {
+                headers: { 'Accept': 'application/json' }
+            });
+            const data = await res.json();
+            if (data.error) {
+                alert('Erreur : ' + data.error);
+            } else {
+                window.open(data.editUrl, '_blank', 'width=1400,height=900');
+            }
+        } catch (err) {
+            alert('Impossible d\'ouvrir l\'éditeur : ' + err.message);
+        } finally {
+            this.ooLoading = false;
+        }
     }
 }">
 
 {{-- --------------------------------------------------------------
      BREADCRUMB
 -------------------------------------------------------------- --}}
-<nav class="flex items-center gap-2 text-[11px] text-slate-400 font-semibold mb-5">
-    <a href="{{ route('dashboard') }}" class="hover:text-orange-500 transition-colors">
+<nav class="flex items-center gap-2 text-[11px] text-slate-400 font-semibold mb-5 overflow-hidden">
+    <a href="{{ route('dashboard') }}" class="hover:text-orange-500 transition-colors shrink-0">
         <i class="fa-solid fa-house text-[10px]"></i>
     </a>
-    <i class="fa-solid fa-chevron-right text-[8px] text-slate-300"></i>
-    <a href="{{ route('documents.index') }}" class="hover:text-orange-500 transition-colors">Documents</a>
-    <i class="fa-solid fa-chevron-right text-[8px] text-slate-300"></i>
-    <span class="text-slate-600 truncate max-w-[200px]">{{ $document->title }}</span>
+    <i class="fa-solid fa-chevron-right text-[8px] text-slate-300 shrink-0"></i>
+    <a href="{{ route('documents.index') }}" class="hover:text-orange-500 transition-colors shrink-0">Documents</a>
+    <i class="fa-solid fa-chevron-right text-[8px] text-slate-300 shrink-0"></i>
+    <span class="text-slate-600 truncate">{{ $document->title }}</span>
 </nav>
 
 {{-- --------------------------------------------------------------
      HERO HEADER
 -------------------------------------------------------------- --}}
-<div class="bg-white rounded-2xl border border-slate-100 shadow-sm mb-5 overflow-hidden">
+<div class="bg-white rounded-2xl border border-slate-100 shadow-sm mb-5">
     {{-- Top accent bar --}}
-    <div class="h-1 w-full {{ $document->status === 'approved' ? 'bg-gradient-to-r from-emerald-400 to-emerald-500' : ($document->status === 'review' ? 'bg-gradient-to-r from-blue-400 to-blue-500' : ($document->status === 'archived' ? 'bg-slate-200' : 'bg-gradient-to-r from-amber-400 to-orange-500')) }}"></div>
+    <div class="h-1 w-full rounded-t-2xl {{ $document->status === 'approved' ? 'bg-gradient-to-r from-emerald-400 to-emerald-500' : ($document->status === 'review' ? 'bg-gradient-to-r from-blue-400 to-blue-500' : ($document->status === 'archived' ? 'bg-slate-200' : 'bg-gradient-to-r from-amber-400 to-orange-500')) }}"></div>
 
-    <div class="p-5 sm:p-6">
-        <div class="flex flex-col lg:flex-row lg:items-start gap-5">
-
-            {{-- Icon + Info --}}
-            <div class="flex items-start gap-4 flex-1 min-w-0">
-                <div class="relative shrink-0">
-                    <div class="w-14 h-14 rounded-2xl bg-gradient-to-br from-orange-50 to-orange-100 flex items-center justify-center shadow-sm">
-                        <i class="fa-solid fa-file-word text-orange-500 text-2xl"></i>
-                    </div>
-                    @if($document->is_confidential)
-                    <div class="absolute -top-1.5 -right-1.5 w-5 h-5 bg-red-500 rounded-full flex items-center justify-center shadow">
-                        <i class="fa-solid fa-lock text-white text-[8px]"></i>
-                    </div>
-                    @endif
+    <div class="p-4 sm:p-6">
+        {{-- Icon + Info --}}
+        <div class="flex items-start gap-3 sm:gap-4">
+            <div class="relative shrink-0">
+                <div class="w-12 h-12 sm:w-14 sm:h-14 rounded-2xl bg-gradient-to-br from-orange-50 to-orange-100 flex items-center justify-center shadow-sm">
+                    <i class="fa-solid fa-file-word text-orange-500 text-xl sm:text-2xl"></i>
                 </div>
-
-                <div class="flex-1 min-w-0">
-                    <div class="flex items-start gap-3 flex-wrap">
-                        <h1 class="text-xl font-black text-slate-900 leading-tight">{{ $document->title }}</h1>
-                        <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[10px] font-black uppercase tracking-widest {{ $sc }}">
-                            <i class="fa-solid {{ $si }} text-[9px]"></i>
-                            {{ $document->status }}
-                        </span>
-                        @if($document->is_confidential)
-                        <span class="inline-flex items-center gap-1 px-2.5 py-1 bg-red-50 text-red-600 ring-1 ring-red-200 rounded-lg text-[10px] font-black uppercase tracking-widest">
-                            <i class="fa-solid fa-shield-halved text-[9px]"></i> Confidentiel
-                        </span>
-                        @endif
-                    </div>
-
-                    <div class="flex items-center gap-3 mt-2 flex-wrap">
-                        <span class="font-mono text-[11px] font-bold text-slate-500 bg-slate-100 px-2.5 py-1 rounded-lg tracking-wider">
-                            {{ $document->reference }}
-                        </span>
-                        <span class="text-[11px] text-slate-400 font-medium">
-                            <i class="fa-solid fa-code-branch text-[9px] mr-1"></i>v{{ $document->version }}
-                        </span>
-                        @if($document->category)
-                        <span class="text-[11px] text-slate-400 font-medium">
-                            <i class="fa-solid fa-folder text-[9px] mr-1 text-orange-400"></i>{{ $document->category->name }}
-                        </span>
-                        @endif
-                        <span class="text-[11px] text-slate-400 font-medium">
-                            <i class="fa-regular fa-calendar text-[9px] mr-1"></i>{{ $document->created_at->format('d/m/Y') }}
-                        </span>
-                        @if($document->creator)
-                        <span class="text-[11px] text-slate-400 font-medium">
-                            <i class="fa-solid fa-user text-[9px] mr-1"></i>{{ $document->creator->full_name ?? $document->creator->name }}
-                        </span>
-                        @endif
-                    </div>
-
-                    {{-- Tags --}}
-                    @if($document->tags && count($document->tags))
-                    <div class="flex items-center gap-1.5 mt-2.5 flex-wrap">
-                        @foreach($document->tags as $tag)
-                        <span class="px-2 py-0.5 bg-orange-50 text-orange-600 rounded-md text-[10px] font-bold">
-                            <i class="fa-solid fa-tag text-[8px] mr-0.5"></i>{{ $tag }}
-                        </span>
-                        @endforeach
-                    </div>
-                    @endif
+                @if($document->is_confidential)
+                <div class="absolute -top-1.5 -right-1.5 w-5 h-5 bg-red-500 rounded-full flex items-center justify-center shadow">
+                    <i class="fa-solid fa-lock text-white text-[8px]"></i>
                 </div>
+                @endif
             </div>
 
-            {{-- Action buttons --}}
-            <div class="flex items-center gap-2 flex-wrap lg:shrink-0">
+            <div class="flex-1 min-w-0">
+                <div class="flex items-start gap-2 flex-wrap">
+                    <h1 class="text-lg sm:text-xl font-black text-slate-900 leading-tight break-words">{{ $document->title }}</h1>
+                    <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[10px] font-black uppercase tracking-widest {{ $sc }} shrink-0">
+                        <i class="fa-solid {{ $si }} text-[9px]"></i>
+                        {{ statusLabel($document->status) }}
+                    </span>
+                    @if($document->is_confidential)
+                    <span class="inline-flex items-center gap-1 px-2.5 py-1 bg-red-50 text-red-600 ring-1 ring-red-200 rounded-lg text-[10px] font-black uppercase tracking-widest shrink-0">
+                        <i class="fa-solid fa-shield-halved text-[9px]"></i> Confidentiel
+                    </span>
+                    @endif
+                </div>
 
-                {{-- Favori --}}
-                <button @click="toggleFav()" :disabled="favLoading"
-                    class="w-9 h-9 flex items-center justify-center rounded-xl border transition-all"
-                    :class="isFav ? 'bg-amber-50 border-amber-200 text-amber-500' : 'bg-white border-slate-200 text-slate-400 hover:border-amber-200 hover:text-amber-400'"
-                    title="Favori">
-                    <i class="fa-star text-sm" :class="isFav ? 'fa-solid' : 'fa-regular'"></i>
-                </button>
+                <div class="flex items-center gap-2 mt-2 flex-wrap">
+                    <span class="font-mono text-[11px] font-bold text-slate-500 bg-slate-100 px-2.5 py-1 rounded-lg tracking-wider">
+                        {{ $document->reference }}
+                    </span>
+                    <span class="text-[11px] text-slate-400 font-medium">
+                        <i class="fa-solid fa-code-branch text-[9px] mr-1"></i>v{{ $document->version }}
+                    </span>
+                    @if($document->category)
+                    <span class="text-[11px] text-slate-400 font-medium">
+                        <i class="fa-solid fa-folder text-[9px] mr-1 text-orange-400"></i>{{ $document->category->name }}
+                    </span>
+                    @endif
+                    <span class="text-[11px] text-slate-400 font-medium">
+                        <i class="fa-regular fa-calendar text-[9px] mr-1"></i>{{ $document->created_at->format('d/m/Y') }}
+                    </span>
+                    @if($document->creator)
+                    <span class="text-[11px] text-slate-400 font-medium">
+                        <i class="fa-solid fa-user text-[9px] mr-1"></i>{{ $document->creator->full_name ?? $document->creator->name }}
+                    </span>
+                    @endif
+                </div>
 
-                {{-- Lock --}}
-                <button
-                    @click="lockStatus === 'mine' ? releaseLock() : acquireLock()"
-                    :disabled="lockStatus === 'other'"
-                    class="w-9 h-9 flex items-center justify-center rounded-xl border transition-all"
-                    :class="{
-                        'bg-green-50 border-green-200 text-green-600': lockStatus === 'mine',
-                        'bg-red-50 border-red-200 text-red-400 cursor-not-allowed': lockStatus === 'other',
-                        'bg-white border-slate-200 text-slate-400 hover:border-slate-300': lockStatus === 'free'
-                    }"
-                    :title="lockStatus === 'mine' ? 'D�verrouiller' : (lockStatus === 'other' ? 'Verrouill� par ' + lockBy : 'Verrouiller')">
-                    <i class="fa-solid text-sm" :class="lockStatus === 'free' ? 'fa-lock-open' : 'fa-lock'"></i>
-                </button>
-
-                {{-- Télécharger --}}
-                <a href="{{ route('documents.download', $document) }}"
-                   class="inline-flex items-center gap-2 bg-white border border-slate-200 hover:bg-slate-50 hover:border-slate-300 text-slate-600 text-xs font-bold px-3.5 py-2 rounded-xl transition-all shadow-sm">
-                    <i class="fa-solid fa-download text-[10px]"></i>
-                    <span class="hidden sm:inline">Télécharger</span>
-                </a>
-
-                {{-- Partager --}}
-                <button @click="shareModal = true"
-                    class="inline-flex items-center gap-2 bg-white border border-slate-200 hover:bg-slate-50 hover:border-slate-300 text-slate-600 text-xs font-bold px-3.5 py-2 rounded-xl transition-all shadow-sm">
-                    <i class="fa-solid fa-share-nodes text-[10px]"></i>
-                    <span class="hidden sm:inline">Partager</span>
-                </button>
-
-                {{-- éditer --}}
-                @if($document->canEdit())
-                <a href="{{ route('documents.edit', $document) }}"
-                   class="inline-flex items-center gap-2 bg-white border border-slate-200 hover:bg-slate-50 hover:border-slate-300 text-slate-600 text-xs font-bold px-3.5 py-2 rounded-xl transition-all shadow-sm">
-                    <i class="fa-solid fa-pen text-[10px]"></i>
-                    <span class="hidden sm:inline">Modifier</span>
-                </a>
-                <a href="{{ route('documents.edit-online', $document) }}"
-                   class="inline-flex items-center gap-2 bg-orange-600 hover:bg-orange-500 active:scale-95 text-white text-xs font-black px-3.5 py-2 rounded-xl transition-all shadow-lg shadow-orange-200">
-                    <i class="fa-solid fa-pen-nib text-[10px]"></i>
-                    <span class="hidden sm:inline">éditer en ligne</span>
-                </a>
+                {{-- Tags --}}
+                @if($document->tags && count($document->tags))
+                <div class="flex items-center gap-1.5 mt-2.5 flex-wrap">
+                    @foreach($document->tags as $tag)
+                    <span class="px-2 py-0.5 bg-orange-50 text-orange-600 rounded-md text-[10px] font-bold">
+                        <i class="fa-solid fa-tag text-[8px] mr-0.5"></i>{{ $tag }}
+                    </span>
+                    @endforeach
+                </div>
                 @endif
+            </div>
+        </div>
 
-                {{-- Menu contextuel --}}
-                <div x-data="{ open: false }" class="relative">
-                    <button @click="open = !open" @click.outside="open = false"
-                        class="w-9 h-9 flex items-center justify-center rounded-xl bg-white border border-slate-200 hover:bg-slate-50 text-slate-500 transition-all shadow-sm">
-                        <i class="fa-solid fa-ellipsis-vertical text-sm"></i>
+        {{-- Action buttons — full width row on mobile --}}
+        <div class="flex items-center gap-2 flex-wrap mt-4 pt-4 border-t border-slate-50">
+
+            {{-- Favori --}}
+            <button @click="toggleFav()" :disabled="favLoading"
+                class="w-9 h-9 flex items-center justify-center rounded-xl border transition-all shrink-0"
+                :class="isFav ? 'bg-amber-50 border-amber-200 text-amber-500' : 'bg-white border-slate-200 text-slate-400 hover:border-amber-200 hover:text-amber-400'"
+                title="Favori">
+                <i class="fa-star text-sm" :class="isFav ? 'fa-solid' : 'fa-regular'"></i>
+            </button>
+
+            {{-- Lock --}}
+            <button
+                @click="lockStatus === 'mine' ? releaseLock() : acquireLock()"
+                :disabled="lockStatus === 'other'"
+                class="w-9 h-9 flex items-center justify-center rounded-xl border transition-all shrink-0"
+                :class="{
+                    'bg-green-50 border-green-200 text-green-600': lockStatus === 'mine',
+                    'bg-red-50 border-red-200 text-red-400 cursor-not-allowed': lockStatus === 'other',
+                    'bg-white border-slate-200 text-slate-400 hover:border-slate-300': lockStatus === 'free'
+                }"
+                :title="lockStatus === 'mine' ? 'Déverrouiller' : (lockStatus === 'other' ? 'Verrouillé par ' + lockBy : 'Verrouiller')">
+                <i class="fa-solid text-sm" :class="lockStatus === 'free' ? 'fa-lock-open' : 'fa-lock'"></i>
+            </button>
+
+            {{-- Télécharger --}}
+            <a href="{{ route('documents.download', $document) }}"
+               class="inline-flex items-center gap-2 bg-white border border-slate-200 hover:bg-slate-50 hover:border-slate-300 text-slate-600 text-xs font-bold px-3 py-2 rounded-xl transition-all shadow-sm shrink-0">
+                <i class="fa-solid fa-download text-[10px]"></i>
+                <span class="hidden xs:inline sm:inline">Télécharger</span>
+            </a>
+
+            {{-- Partager --}}
+            <button @click="shareModal = true"
+                class="inline-flex items-center gap-2 bg-white border border-slate-200 hover:bg-slate-50 hover:border-slate-300 text-slate-600 text-xs font-bold px-3 py-2 rounded-xl transition-all shadow-sm shrink-0">
+                <i class="fa-solid fa-share-nodes text-[10px]"></i>
+                <span class="hidden sm:inline">Partager</span>
+            </button>
+
+            {{-- éditer --}}
+            @if($document->canEdit())
+            <a href="{{ route('documents.edit', $document) }}"
+               class="inline-flex items-center gap-2 bg-white border border-slate-200 hover:bg-slate-50 hover:border-slate-300 text-slate-600 text-xs font-bold px-3 py-2 rounded-xl transition-all shadow-sm shrink-0">
+                <i class="fa-solid fa-pen text-[10px]"></i>
+                <span class="hidden sm:inline">Modifier</span>
+            </a>
+            {{-- Bouton "Éditer en ligne" (OnlyOffice) — temporairement désactivé, service non disponible
+            <button
+                @click="openOnlyOffice()"
+                :disabled="ooLoading"
+                class="inline-flex items-center gap-2 bg-orange-600 hover:bg-orange-500 active:scale-95 disabled:opacity-60 text-white text-xs font-black px-3 py-2 rounded-xl transition-all shadow-lg shadow-orange-200 shrink-0">
+                <i class="fa-solid text-[10px]" :class="ooLoading ? 'fa-spinner fa-spin' : 'fa-pen-nib'"></i>
+                <span class="hidden sm:inline" x-text="ooLoading ? 'Ouverture...' : 'Éditer en ligne'"></span>
+            </button>
+            --}}
+            {{-- Nouvelle version --}}
+            <button @click="uploadModal = true"
+                class="inline-flex items-center gap-2 bg-white border border-slate-200 hover:bg-blue-50 hover:border-blue-300 text-slate-600 hover:text-blue-700 text-xs font-bold px-3 py-2 rounded-xl transition-all shadow-sm shrink-0">
+                <i class="fa-solid fa-upload text-[10px]"></i>
+                <span class="hidden sm:inline">Nouvelle version</span>
+            </button>
+            @endif
+
+            {{-- Menu contextuel --}}
+            <div x-data="{ open: false }" class="relative ml-auto shrink-0">
+                <button @click="open = !open" @click.outside="open = false"
+                    class="w-9 h-9 flex items-center justify-center rounded-xl bg-white border border-slate-200 hover:bg-slate-50 text-slate-500 transition-all shadow-sm">
+                    <i class="fa-solid fa-ellipsis-vertical text-sm"></i>
+                </button>
+                <div x-show="open" x-cloak x-transition
+                     class="absolute right-0 top-full mt-1.5 w-52 bg-white border border-slate-100 rounded-2xl shadow-xl z-50 py-1.5 overflow-hidden">
+                    <a href="{{ route('documents.preview', $document) }}"
+                       class="flex items-center gap-3 px-4 py-2.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition-colors">
+                        <i class="fa-solid fa-eye w-4 text-slate-400"></i> Prévisualiser
+                    </a>
+                    <a href="{{ route('documents.versions', $document) }}"
+                       class="flex items-center gap-3 px-4 py-2.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition-colors">
+                        <i class="fa-solid fa-code-branch w-4 text-slate-400"></i> Versions
+                    </a>
+                    <a href="{{ route('documents.signatures', $document) }}"
+                       class="flex items-center gap-3 px-4 py-2.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition-colors">
+                        <i class="fa-solid fa-signature w-4 text-slate-400"></i> Signatures
+                    </a>
+                    <a href="{{ route('documents.approval', $document) }}"
+                       class="flex items-center gap-3 px-4 py-2.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition-colors">
+                        <i class="fa-solid fa-list-check w-4 text-slate-400"></i> Workflow
+                    </a>
+                    <a href="{{ route('documents.audit', $document) }}"
+                       class="flex items-center gap-3 px-4 py-2.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition-colors">
+                        <i class="fa-solid fa-clock-rotate-left w-4 text-slate-400"></i> Journal d'audit
+                    </a>
+                    <div class="border-t border-slate-100 my-1"></div>
+                    <button @click="archiveModal = true; open = false"
+                        class="w-full flex items-center gap-3 px-4 py-2.5 text-xs font-semibold text-amber-600 hover:bg-amber-50 transition-colors">
+                        <i class="fa-solid fa-box-archive w-4"></i> Archiver
                     </button>
-                    <div x-show="open" x-cloak x-transition
-                         class="absolute right-0 top-full mt-1.5 w-52 bg-white border border-slate-100 rounded-2xl shadow-xl z-50 py-1.5 overflow-hidden">
-                        <a href="{{ route('documents.preview', $document) }}"
-                           class="flex items-center gap-3 px-4 py-2.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition-colors">
-                            <i class="fa-solid fa-eye w-4 text-slate-400"></i> Prévisualiser
-                        </a>
-                        <a href="{{ route('documents.versions', $document) }}"
-                           class="flex items-center gap-3 px-4 py-2.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition-colors">
-                            <i class="fa-solid fa-code-branch w-4 text-slate-400"></i> Versions
-                        </a>
-                        <a href="{{ route('documents.signatures', $document) }}"
-                           class="flex items-center gap-3 px-4 py-2.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition-colors">
-                            <i class="fa-solid fa-signature w-4 text-slate-400"></i> Signatures
-                        </a>
-                        <a href="{{ route('documents.approval', $document) }}"
-                           class="flex items-center gap-3 px-4 py-2.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition-colors">
-                            <i class="fa-solid fa-list-check w-4 text-slate-400"></i> Workflow
-                        </a>
-                        <a href="{{ route('documents.audit', $document) }}"
-                           class="flex items-center gap-3 px-4 py-2.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition-colors">
-                            <i class="fa-solid fa-clock-rotate-left w-4 text-slate-400"></i> Journal d'audit
-                        </a>
-                        <div class="border-t border-slate-100 my-1"></div>
-                        <button @click="archiveModal = true; open = false"
-                            class="w-full flex items-center gap-3 px-4 py-2.5 text-xs font-semibold text-amber-600 hover:bg-amber-50 transition-colors">
-                            <i class="fa-solid fa-box-archive w-4"></i> Archiver
+                    @if(auth()->user()->hasRole('admin'))
+                    <form action="{{ route('documents.destroy', $document) }}" method="POST"
+                          onsubmit="return confirm('Supprimer ce document ?');">
+                        @csrf @method('DELETE')
+                        <button type="submit"
+                            class="w-full flex items-center gap-3 px-4 py-2.5 text-xs font-semibold text-red-600 hover:bg-red-50 transition-colors">
+                            <i class="fa-solid fa-trash-can w-4"></i> Supprimer
                         </button>
-                        @if(auth()->user()->hasRole('admin'))
-                        <form action="{{ route('documents.destroy', $document) }}" method="POST"
-                              onsubmit="return confirm('Supprimer ce document ?');">
-                            @csrf @method('DELETE')
-                            <button type="submit"
-                                class="w-full flex items-center gap-3 px-4 py-2.5 text-xs font-semibold text-red-600 hover:bg-red-50 transition-colors">
-                                <i class="fa-solid fa-trash-can w-4"></i> Supprimer
-                            </button>
-                        </form>
-                        @endif
-                    </div>
+                    </form>
+                    @endif
                 </div>
             </div>
         </div>
 
         {{-- Lock warning banner --}}
         <div x-show="lockStatus === 'other'" x-cloak
-             class="mt-4 flex items-center gap-3 bg-red-50 border border-red-100 rounded-xl px-4 py-3">
-            <i class="fa-solid fa-lock text-red-500 text-sm"></i>
+             class="mt-4 mx-4 sm:mx-6 mb-4 flex items-center gap-3 bg-red-50 border border-red-100 rounded-xl px-4 py-3">
+            <i class="fa-solid fa-lock text-red-500 text-sm shrink-0"></i>
             <p class="text-xs font-bold text-red-700">
-                Ce document est verrouill� par <span x-text="lockBy" class="underline"></span> � �dition impossible.
+                Ce document est verrouillé par <span x-text="lockBy" class="underline"></span> — édition impossible.
             </p>
         </div>
         <div x-show="lockStatus === 'mine'" x-cloak
-             class="mt-4 flex items-center gap-3 bg-green-50 border border-green-100 rounded-xl px-4 py-3">
-            <i class="fa-solid fa-lock text-green-500 text-sm"></i>
-            <p class="text-xs font-bold text-green-700">Vous avez verrouill� ce document pour �dition.</p>
-            <button @click="releaseLock()" class="ml-auto text-[10px] font-black text-green-700 hover:text-green-900 underline">Lib�rer</button>
+             class="mt-4 mx-4 sm:mx-6 mb-4 flex items-center gap-3 bg-green-50 border border-green-100 rounded-xl px-4 py-3">
+            <i class="fa-solid fa-lock text-green-500 text-sm shrink-0"></i>
+            <p class="text-xs font-bold text-green-700 flex-1">Vous avez verrouillé ce document pour édition.</p>
+            <button @click="releaseLock()" class="ml-auto text-[10px] font-black text-green-700 hover:text-green-900 underline shrink-0">Libérer</button>
         </div>
     </div>
 </div>
-
-
-{{-- --------------------------------------------------------------
-     STATS RAPIDES
--------------------------------------------------------------- --}}
 <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-5">
-    <div class="bg-white rounded-2xl border border-slate-100 shadow-sm px-4 py-3.5 flex items-center gap-3">
-        <div class="w-9 h-9 rounded-xl bg-blue-50 flex items-center justify-center shrink-0">
+    <div class="bg-white rounded-2xl border border-slate-100 shadow-sm px-3 py-3 sm:px-4 sm:py-3.5 flex items-center gap-2 sm:gap-3">
+        <div class="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-blue-50 flex items-center justify-center shrink-0">
             <i class="fa-solid fa-eye text-blue-500 text-sm"></i>
         </div>
-        <div>
-            <p class="text-[9px] font-black text-slate-400 uppercase tracking-widest">Consultations</p>
-            <p class="text-lg font-black text-slate-800 leading-none mt-0.5">
+        <div class="min-w-0">
+            <p class="text-[9px] font-black text-slate-400 uppercase tracking-widest truncate">Consultations</p>
+            <p class="text-base sm:text-lg font-black text-slate-800 leading-none mt-0.5">
                 {{ $document->auditLogs->where('action', 'viewed')->count() }}
             </p>
         </div>
     </div>
-    <div class="bg-white rounded-2xl border border-slate-100 shadow-sm px-4 py-3.5 flex items-center gap-3">
-        <div class="w-9 h-9 rounded-xl bg-purple-50 flex items-center justify-center shrink-0">
+    <div class="bg-white rounded-2xl border border-slate-100 shadow-sm px-3 py-3 sm:px-4 sm:py-3.5 flex items-center gap-2 sm:gap-3">
+        <div class="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-purple-50 flex items-center justify-center shrink-0">
             <i class="fa-solid fa-code-branch text-purple-500 text-sm"></i>
         </div>
-        <div>
-            <p class="text-[9px] font-black text-slate-400 uppercase tracking-widest">Versions</p>
-            <p class="text-lg font-black text-slate-800 leading-none mt-0.5">{{ $document->versions->count() }}</p>
+        <div class="min-w-0">
+            <p class="text-[9px] font-black text-slate-400 uppercase tracking-widest truncate">Versions</p>
+            <p class="text-base sm:text-lg font-black text-slate-800 leading-none mt-0.5">{{ $document->versions->count() }}</p>
         </div>
     </div>
-    <div class="bg-white rounded-2xl border border-slate-100 shadow-sm px-4 py-3.5 flex items-center gap-3">
-        <div class="w-9 h-9 rounded-xl bg-orange-50 flex items-center justify-center shrink-0">
+    <div class="bg-white rounded-2xl border border-slate-100 shadow-sm px-3 py-3 sm:px-4 sm:py-3.5 flex items-center gap-2 sm:gap-3">
+        <div class="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-orange-50 flex items-center justify-center shrink-0">
             <i class="fa-solid fa-comments text-orange-500 text-sm"></i>
         </div>
-        <div>
-            <p class="text-[9px] font-black text-slate-400 uppercase tracking-widest">Commentaires</p>
-            <p class="text-lg font-black text-slate-800 leading-none mt-0.5">{{ $document->comments->count() }}</p>
+        <div class="min-w-0">
+            <p class="text-[9px] font-black text-slate-400 uppercase tracking-widest truncate">Commentaires</p>
+            <p class="text-base sm:text-lg font-black text-slate-800 leading-none mt-0.5">{{ $document->comments->count() }}</p>
         </div>
     </div>
-    <div class="bg-white rounded-2xl border border-slate-100 shadow-sm px-4 py-3.5 flex items-center gap-3">
-        <div class="w-9 h-9 rounded-xl bg-emerald-50 flex items-center justify-center shrink-0">
+    <div class="bg-white rounded-2xl border border-slate-100 shadow-sm px-3 py-3 sm:px-4 sm:py-3.5 flex items-center gap-2 sm:gap-3">
+        <div class="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-emerald-50 flex items-center justify-center shrink-0">
             <i class="fa-solid fa-signature text-emerald-500 text-sm"></i>
         </div>
-        <div>
-            <p class="text-[9px] font-black text-slate-400 uppercase tracking-widest">Signatures</p>
-            <p class="text-lg font-black text-slate-800 leading-none mt-0.5">{{ $document->signatures->count() }}</p>
+        <div class="min-w-0">
+            <p class="text-[9px] font-black text-slate-400 uppercase tracking-widest truncate">Signatures</p>
+            <p class="text-base sm:text-lg font-black text-slate-800 leading-none mt-0.5">{{ $document->signatures->count() }}</p>
         </div>
     </div>
 </div>
 
 
 {{-- TABS NAV --}}
-<div class="flex items-center gap-1 bg-white border border-slate-100 rounded-2xl p-1 shadow-sm mb-5 overflow-x-auto">
+<div class="flex items-center gap-1 bg-white border border-slate-100 rounded-2xl p-1 shadow-sm mb-5 overflow-x-auto scrollbar-none">
     @foreach([
-        ['overview',   'fa-circle-info',        'Apercu'],
+        ['overview',   'fa-circle-info',        'Aperçu'],
         ['comments',   'fa-comments',            'Commentaires'],
         ['approval',   'fa-list-check',          'Approbation'],
         ['signatures', 'fa-signature',           'Signatures'],
@@ -327,7 +349,7 @@
     ] as [$key, $icon, $label])
     <button @click="tab = '{{ $key }}'"
         :class="tab === '{{ $key }}' ? 'bg-slate-900 text-white shadow' : 'text-slate-400 hover:text-slate-600 hover:bg-slate-50'"
-        class="flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-[11px] font-bold whitespace-nowrap transition-all">
+        class="flex items-center gap-1.5 px-2.5 sm:px-3.5 py-2 rounded-xl text-[11px] font-bold whitespace-nowrap transition-all shrink-0">
         <i class="fa-solid {{ $icon }} text-[10px]"></i>
         <span class="hidden sm:inline">{{ $label }}</span>
     </button>
@@ -339,7 +361,7 @@
     <div class="lg:col-span-2 space-y-4">
         <div class="bg-white rounded-2xl border border-slate-100 shadow-sm p-5">
             <h2 class="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4">Informations</h2>
-            <div class="grid grid-cols-2 gap-x-6 gap-y-4">
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-4">
                 <div><p class="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Categorie</p><p class="text-sm font-bold text-slate-800">{{ $document->category?->name ?? 'General' }}</p></div>
                 <div><p class="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Version</p><p class="text-sm font-bold text-slate-800">{{ $document->version }}</p></div>
                 <div><p class="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Cree le</p><p class="text-sm font-bold text-slate-800">{{ $document->created_at->format('d/m/Y H:i') }}</p></div>
@@ -370,6 +392,9 @@
             <h2 class="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3">Actions rapides</h2>
             <div class="space-y-2">
                 <a href="{{ route('documents.versions', $document) }}" class="flex items-center gap-3 w-full px-3 py-2.5 rounded-xl bg-slate-50 hover:bg-blue-50 hover:text-blue-700 text-slate-600 text-xs font-bold transition-all"><i class="fa-solid fa-code-branch text-blue-400 text-[10px]"></i>Versions</a>
+                @if($document->canEdit())
+                <button @click="uploadModal = true" class="flex items-center gap-3 w-full px-3 py-2.5 rounded-xl bg-slate-50 hover:bg-blue-50 hover:text-blue-700 text-slate-600 text-xs font-bold transition-all"><i class="fa-solid fa-upload text-blue-400 text-[10px]"></i>Uploader une nouvelle version</button>
+                @endif
                 <a href="{{ route('documents.audit', $document) }}" class="flex items-center gap-3 w-full px-3 py-2.5 rounded-xl bg-slate-50 hover:bg-purple-50 hover:text-purple-700 text-slate-600 text-xs font-bold transition-all"><i class="fa-solid fa-clock-rotate-left text-purple-400 text-[10px]"></i>Journal d'audit</a>
                 <a href="{{ route('documents.download', $document) }}" class="flex items-center gap-3 w-full px-3 py-2.5 rounded-xl bg-slate-50 hover:bg-green-50 hover:text-green-700 text-slate-600 text-xs font-bold transition-all"><i class="fa-solid fa-download text-green-400 text-[10px]"></i>Telecharger</a>
                 @if(!$document->isArchived())
@@ -443,7 +468,7 @@
         <div class="flex items-center gap-4 px-5 py-4 border-b border-slate-50 last:border-0">
             <div class="w-8 h-8 rounded-xl flex items-center justify-center font-black text-xs {{ $step->status === 'approved' ? 'bg-green-100 text-green-600' : ($step->status === 'rejected' ? 'bg-red-100 text-red-600' : 'bg-slate-100 text-slate-500') }}">{{ $step->step_order }}</div>
             <div class="flex-1"><p class="text-sm font-bold text-slate-800">{{ $step->approver->full_name }}</p><p class="text-[10px] text-slate-400">{{ $step->approver->email }}</p>@if($step->comment)<p class="text-xs text-slate-600 mt-1 italic">{{ $step->comment }}</p>@endif</div>
-            <span class="px-2.5 py-1 rounded-lg text-[9px] font-black uppercase {{ $step->status === 'approved' ? 'bg-green-50 text-green-600' : ($step->status === 'rejected' ? 'bg-red-50 text-red-600' : 'bg-amber-50 text-amber-600') }}">{{ $step->status }}</span>
+            <span class="px-2.5 py-1 rounded-lg text-[9px] font-black uppercase {{ $step->status === 'approved' ? 'bg-green-50 text-green-600' : ($step->status === 'rejected' ? 'bg-red-50 text-red-600' : 'bg-amber-50 text-amber-600') }}">{{ statusLabel($step->status) }}</span>
         </div>
         @empty
         <div class="flex flex-col items-center justify-center py-12 text-center"><i class="fa-solid fa-list-check text-slate-200 text-3xl mb-3"></i><p class="text-xs font-bold text-slate-400">Aucun workflow configure</p><a href="{{ route('documents.approval', $document) }}" class="mt-3 text-[10px] font-black text-orange-600 hover:underline uppercase">Configurer</a></div>
@@ -521,7 +546,7 @@
         <div class="flex items-start gap-3 px-5 py-3.5 border-b border-slate-50 last:border-0 hover:bg-slate-50/50 transition-colors">
             <div class="w-7 h-7 rounded-lg bg-orange-50 flex items-center justify-center shrink-0 mt-0.5"><i class="fa-solid fa-bolt text-orange-500 text-[9px]"></i></div>
             <div class="flex-1 min-w-0">
-                <p class="text-xs font-bold text-slate-800"><span class="text-orange-600">{{ $log->action }}</span>  {{ $log->user?->full_name ?? 'Systeme' }}</p>
+                <p class="text-xs font-bold text-slate-800"><span class="text-orange-600">{{ actionLabel($log->action) }}</span>  {{ $log->user?->full_name ?? 'Système' }}</p>
                 @if($log->description)<p class="text-[10px] text-slate-400 mt-0.5 truncate">{{ $log->description }}</p>@endif
             </div>
             <span class="text-[9px] text-slate-400 font-mono shrink-0">{{ $log->created_at->diffForHumans() }}</span>
@@ -529,6 +554,99 @@
         @empty
         <div class="flex flex-col items-center justify-center py-12 text-center"><i class="fa-solid fa-clock-rotate-left text-slate-200 text-3xl mb-3"></i><p class="text-xs font-bold text-slate-400">Aucune activite</p></div>
         @endforelse
+    </div>
+</div>
+
+{{-- ============================================================
+     MODAL : UPLOAD NOUVELLE VERSION
+============================================================ --}}
+<div x-show="uploadModal" x-cloak
+     class="fixed inset-0 z-50 flex items-center justify-center p-4"
+     x-transition:enter="transition ease-out duration-200"
+     x-transition:enter-start="opacity-0"
+     x-transition:enter-end="opacity-100"
+     x-transition:leave="transition ease-in duration-150"
+     x-transition:leave-start="opacity-100"
+     x-transition:leave-end="opacity-0">
+
+    {{-- Backdrop --}}
+    <div class="absolute inset-0 bg-slate-900/50 backdrop-blur-sm" @click="uploadModal = false"></div>
+
+    {{-- Panel --}}
+    <div class="relative bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden"
+         x-transition:enter="transition ease-out duration-200"
+         x-transition:enter-start="opacity-0 scale-95"
+         x-transition:enter-end="opacity-100 scale-100"
+         x-data="wordUpload()">
+
+        {{-- Header --}}
+        <div class="flex items-center justify-between px-6 py-4 border-b border-slate-100">
+            <div>
+                <h3 class="text-sm font-black text-slate-900">Uploader une nouvelle version</h3>
+                <p class="text-[10px] text-slate-400 mt-0.5">Version actuelle : <span class="font-bold text-slate-600">v{{ $document->version }}</span> → <span class="font-bold text-blue-600">v{{ $document->version + 1 }}</span></p>
+            </div>
+            <button @click="uploadModal = false" class="w-8 h-8 flex items-center justify-center rounded-xl hover:bg-slate-100 text-slate-400 transition-all">
+                <i class="fa-solid fa-xmark text-sm"></i>
+            </button>
+        </div>
+
+        {{-- Form --}}
+        <form action="{{ route('documents.upload-version', $document) }}" method="POST" enctype="multipart/form-data" class="p-6 space-y-4">
+            @csrf
+
+            {{-- Drop zone --}}
+            <div
+                @dragover.prevent="dragging = true"
+                @dragleave.prevent="dragging = false"
+                @drop.prevent="handleDrop($event)"
+                :class="dragging ? 'border-blue-400 bg-blue-50' : 'border-slate-200 bg-slate-50 hover:border-blue-300 hover:bg-blue-50/40'"
+                class="relative border-2 border-dashed rounded-xl p-6 text-center transition-all cursor-pointer"
+                @click="$refs.fileInput.click()">
+
+                <input type="file" name="file" accept=".docx,.doc" required
+                       x-ref="fileInput" @change="handleFile($event)" class="hidden">
+
+                <template x-if="!fileName">
+                    <div>
+                        <i class="fa-solid fa-file-word text-3xl text-slate-300 mb-2"></i>
+                        <p class="text-xs font-bold text-slate-500">Glissez votre fichier Word ici</p>
+                        <p class="text-[10px] text-slate-400 mt-1">ou cliquez pour parcourir</p>
+                        <p class="text-[9px] text-slate-300 mt-2 font-mono">.docx / .doc — max 50 Mo</p>
+                    </div>
+                </template>
+                <template x-if="fileName">
+                    <div class="flex items-center gap-3 justify-center">
+                        <i class="fa-solid fa-file-word text-2xl text-blue-500"></i>
+                        <div class="text-left">
+                            <p class="text-xs font-bold text-slate-800" x-text="fileName"></p>
+                            <p class="text-[10px] text-blue-500 font-bold mt-0.5">Fichier sélectionné ✓</p>
+                        </div>
+                    </div>
+                </template>
+            </div>
+
+            {{-- Description --}}
+            <div>
+                <label class="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5">Description des modifications <span class="text-slate-300 font-normal normal-case">(optionnel)</span></label>
+                <textarea name="change_description" rows="2"
+                    placeholder="Ex: Correction des fautes, mise à jour section 3..."
+                    class="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-xs font-medium text-slate-700 placeholder-slate-300 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all resize-none"></textarea>
+            </div>
+
+            {{-- Actions --}}
+            <div class="flex items-center gap-3 pt-1">
+                <button type="button" @click="uploadModal = false"
+                    class="flex-1 px-4 py-2.5 rounded-xl border border-slate-200 text-xs font-bold text-slate-600 hover:bg-slate-50 transition-all">
+                    Annuler
+                </button>
+                <button type="submit" :disabled="!fileName"
+                    :class="fileName ? 'bg-blue-600 hover:bg-blue-500 shadow-lg shadow-blue-200' : 'bg-slate-200 text-slate-400 cursor-not-allowed'"
+                    class="flex-1 inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-white text-xs font-black transition-all">
+                    <i class="fa-solid fa-upload text-[10px]"></i>
+                    Uploader v{{ $document->version + 1 }}
+                </button>
+            </div>
+        </form>
     </div>
 </div>
 

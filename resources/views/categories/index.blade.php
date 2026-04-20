@@ -238,13 +238,12 @@
                 <div>
                     <label class="block text-[9px] font-black text-slate-500 uppercase tracking-widest mb-1.5">Catégorie parente</label>
                     <select name="parent_id"
+                            x-init="$el.value = editData.parent_id ?? ''"
+                            x-effect="$el.value = editData.parent_id ?? ''"
                             class="w-full bg-slate-50 border border-slate-100 rounded-xl px-4 py-2.5 text-sm font-medium text-slate-700 focus:outline-none focus:ring-2 focus:ring-orange-500 transition-all">
                         <option value="">Aucune (catégorie racine)</option>
                         @foreach($allCategories as $parent)
-                        <option :value="'{{ $parent->id }}'"
-                                :selected="editData.parent_id == '{{ $parent->id }}'">
-                            {{ $parent->name }}
-                        </option>
+                        <option value="{{ $parent->id }}" x-show="editData.id != {{ $parent->id }}">{{ $parent->name }}</option>
                         @endforeach
                     </select>
                 </div>

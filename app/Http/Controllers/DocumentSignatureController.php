@@ -11,6 +11,9 @@ class DocumentSignatureController extends Controller
 {
     public function index(Document $document)
     {
+        if (!$document->canView()) {
+            abort(403, 'Accès refusé à ce document.');
+        }
         $signatures = $document->signatures()->with('user')->latest()->get();
         return view('documents.signatures', compact('document', 'signatures'));
     }

@@ -9,6 +9,10 @@ class DocumentFavoriteController extends Controller
 {
     public function toggle(Document $document)
     {
+        if (!$document->canView()) {
+            abort(403, 'Accès refusé à ce document.');
+        }
+
         $user = auth()->user();
         $user->favorites()->toggle($document->id);
 

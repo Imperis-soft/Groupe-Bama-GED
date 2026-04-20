@@ -23,7 +23,20 @@
 
             <form action="{{ route('categories.store') }}" method="POST" class="space-y-6">
                 @csrf
-                
+
+                <div>
+                    <label class="block text-[11px] font-black text-gray-400 uppercase tracking-widest mb-2 ml-1">Catégorie parente</label>
+                    <select name="parent_id"
+                            class="w-full bg-gray-50 border-2 border-gray-50 rounded-2xl px-6 py-4 text-gray-900 font-medium focus:bg-white focus:border-orange-500 focus:ring-0 transition-all">
+                        <option value="">Aucune (catégorie racine)</option>
+                        @foreach($allCategories as $parent)
+                        <option value="{{ $parent->id }}" {{ old('parent_id') == $parent->id ? 'selected' : '' }}>
+                            {{ $parent->name }}
+                        </option>
+                        @endforeach
+                    </select>
+                </div>
+
                 <div>
                     <label class="block text-[11px] font-black text-gray-400 uppercase tracking-widest mb-2 ml-1">Nom de la catégorie</label>
                     <input type="text" name="name" id="name" required
