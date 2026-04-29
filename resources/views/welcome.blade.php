@@ -45,7 +45,6 @@
             <a href="#fonctionnalites" class="hover:text-orange-600 transition-colors">Fonctionnalités</a>
             <a href="#securite" class="hover:text-orange-600 transition-colors">Sécurité</a>
             <a href="#workflow" class="hover:text-orange-600 transition-colors">Workflow</a>
-            <a href="#tech" class="hover:text-orange-600 transition-colors">Technologie</a>
         </div>
         <div>
             @auth
@@ -602,7 +601,6 @@
                 <a href="#fonctionnalites" class="hover:text-orange-600 transition-colors uppercase tracking-wider">Fonctionnalités</a>
                 <a href="#securite" class="hover:text-orange-600 transition-colors uppercase tracking-wider">Sécurité</a>
                 <a href="#workflow" class="hover:text-orange-600 transition-colors uppercase tracking-wider">Workflow</a>
-                <a href="#tech" class="hover:text-orange-600 transition-colors uppercase tracking-wider">Technologie</a>
                 <a href="{{ route('login') }}" class="hover:text-orange-600 transition-colors uppercase tracking-wider">Connexion</a>
             </div>
 
