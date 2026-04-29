@@ -88,29 +88,46 @@
                     </div>
                 </div>
 
-                {{-- JSON avancé --}}
+                {{-- Workflow d'approbation --}}
+                <div class="bg-white rounded-2xl border border-slate-100 shadow-sm p-5 md:p-6">
+                    <div class="flex items-center gap-2 mb-5">
+                        <div class="w-7 h-7 rounded-lg bg-orange-100 flex items-center justify-center shrink-0">
+                            <i class="fa-solid fa-list-check text-orange-500 text-xs"></i>
+                        </div>
+                        <h2 class="text-xs font-black text-slate-900 uppercase tracking-widest">Workflow d'approbation</h2>
+                    </div>
+
+                    {{-- Hidden input that holds the JSON --}}
+                    <input type="hidden" name="approval_workflow" id="approval_workflow_input">
+
+                    <div id="workflow-steps" class="space-y-2 mb-3"></div>
+
+                    <button type="button" id="add-workflow-step"
+                        class="inline-flex items-center gap-2 text-[10px] font-bold text-orange-600 hover:text-orange-700 bg-orange-50 hover:bg-orange-100 border border-orange-200 px-3 py-2 rounded-lg transition-all">
+                        <i class="fa-solid fa-plus text-[9px]"></i> Ajouter une étape
+                    </button>
+                    <p class="text-[9px] text-slate-400 mt-2">Ex : Vérification RH, Validation manager, Signature DG…</p>
+                </div>
+
+                {{-- Métadonnées --}}
                 <div class="bg-white rounded-2xl border border-slate-100 shadow-sm p-5 md:p-6">
                     <div class="flex items-center gap-2 mb-5">
                         <div class="w-7 h-7 rounded-lg bg-slate-100 flex items-center justify-center shrink-0">
-                            <i class="fa-solid fa-code text-slate-500 text-xs"></i>
+                            <i class="fa-solid fa-tags text-slate-500 text-xs"></i>
                         </div>
-                        <h2 class="text-xs font-black text-slate-900 uppercase tracking-widest">Données avancées</h2>
+                        <h2 class="text-xs font-black text-slate-900 uppercase tracking-widest">Métadonnées</h2>
                     </div>
 
-                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div>
-                            <label class="block text-[9px] font-black text-slate-500 uppercase tracking-widest mb-1.5">Workflow d'approbation (JSON)</label>
-                            <textarea name="approval_workflow" id="approval_workflow" rows="5"
-                                class="w-full bg-slate-50 border border-slate-100 rounded-xl px-4 py-3 text-[10px] font-mono text-slate-700 focus:outline-none focus:ring-2 focus:ring-orange-500 transition-all resize-none">{{ old('approval_workflow', json_encode($document->approval_workflow ?? [], JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE)) }}</textarea>
-                            <p id="workflow-error" class="hidden text-red-500 text-[9px] font-bold mt-1">JSON invalide.</p>
-                        </div>
-                        <div>
-                            <label class="block text-[9px] font-black text-slate-500 uppercase tracking-widest mb-1.5">Métadonnées (JSON)</label>
-                            <textarea name="metadata" id="metadata" rows="5"
-                                class="w-full bg-slate-50 border border-slate-100 rounded-xl px-4 py-3 text-[10px] font-mono text-slate-700 focus:outline-none focus:ring-2 focus:ring-orange-500 transition-all resize-none">{{ old('metadata', json_encode($document->metadata ?? [], JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE)) }}</textarea>
-                            <p id="meta-error" class="hidden text-red-500 text-[9px] font-bold mt-1">JSON invalide.</p>
-                        </div>
-                    </div>
+                    {{-- Hidden input that holds the JSON --}}
+                    <input type="hidden" name="metadata" id="metadata_input">
+
+                    <div id="metadata-rows" class="space-y-2 mb-3"></div>
+
+                    <button type="button" id="add-metadata-row"
+                        class="inline-flex items-center gap-2 text-[10px] font-bold text-slate-600 hover:text-slate-800 bg-slate-50 hover:bg-slate-100 border border-slate-200 px-3 py-2 rounded-lg transition-all">
+                        <i class="fa-solid fa-plus text-[9px]"></i> Ajouter un champ
+                    </button>
+                    <p class="text-[9px] text-slate-400 mt-2">Ex : projet → Refonte SI, département → DSI…</p>
                 </div>
 
             </div>
@@ -211,22 +228,117 @@
 </div>
 
 <script>
-document.getElementById('doc-edit-form').addEventListener('submit', function(e) {
-    let valid = true;
+// ─── Initial data from server ───────────────────────────────────────────────
+const initialWorkflow = @json($document->approval_workflow ?? []);
+const initialMetadata = @json($document->metadata ?? (object)[]);
 
-    const meta = document.getElementById('metadata').value.trim();
-    if (meta && meta !== '[]' && meta !== '{}') {
-        try { JSON.parse(meta); document.getElementById('meta-error').classList.add('hidden'); }
-        catch { valid = false; document.getElementById('meta-error').classList.remove('hidden'); }
-    }
+// ─── Workflow steps ──────────────────────────────────────────────────────────
+const workflowContainer = document.getElementById('workflow-steps');
+const workflowInput     = document.getElementById('approval_workflow_input');
 
-    const wf = document.getElementById('approval_workflow').value.trim();
-    if (wf && wf !== '[]' && wf !== '{}') {
-        try { JSON.parse(wf); document.getElementById('workflow-error').classList.add('hidden'); }
-        catch { valid = false; document.getElementById('workflow-error').classList.remove('hidden'); }
-    }
+function renderWorkflowStep(value = '') {
+    const idx = workflowContainer.children.length;
+    const row = document.createElement('div');
+    row.className = 'flex items-center gap-2 group';
+    row.innerHTML = `
+        <span class="w-5 h-5 rounded-full bg-orange-100 text-orange-600 text-[9px] font-black flex items-center justify-center shrink-0 step-num">${idx + 1}</span>
+        <input type="text" value="${escHtml(value)}" placeholder="Nom de l'étape…"
+               class="flex-1 bg-slate-50 border border-slate-100 rounded-lg px-3 py-2 text-xs font-medium text-slate-700 focus:outline-none focus:ring-2 focus:ring-orange-400 transition-all step-input">
+        <button type="button"
+                class="opacity-0 group-hover:opacity-100 w-6 h-6 flex items-center justify-center rounded-lg text-slate-300 hover:text-red-400 hover:bg-red-50 transition-all remove-step">
+            <i class="fa-solid fa-xmark text-[10px]"></i>
+        </button>`;
+    row.querySelector('.remove-step').addEventListener('click', () => {
+        row.remove();
+        renumberSteps();
+        syncWorkflow();
+    });
+    row.querySelector('.step-input').addEventListener('input', syncWorkflow);
+    workflowContainer.appendChild(row);
+}
 
-    if (!valid) e.preventDefault();
+function renumberSteps() {
+    workflowContainer.querySelectorAll('.step-num').forEach((el, i) => el.textContent = i + 1);
+}
+
+function syncWorkflow() {
+    const steps = [...workflowContainer.querySelectorAll('.step-input')]
+        .map(i => i.value.trim())
+        .filter(v => v !== '');
+    workflowInput.value = JSON.stringify(steps);
+}
+
+document.getElementById('add-workflow-step').addEventListener('click', () => {
+    renderWorkflowStep();
+    syncWorkflow();
+});
+
+// Init workflow
+if (Array.isArray(initialWorkflow) && initialWorkflow.length > 0) {
+    initialWorkflow.forEach(step => renderWorkflowStep(step));
+}
+syncWorkflow();
+
+// ─── Metadata key/value rows ─────────────────────────────────────────────────
+const metaContainer = document.getElementById('metadata-rows');
+const metaInput     = document.getElementById('metadata_input');
+
+function renderMetaRow(key = '', value = '') {
+    const row = document.createElement('div');
+    row.className = 'flex items-center gap-2 group';
+    row.innerHTML = `
+        <input type="text" value="${escHtml(key)}" placeholder="Clé"
+               class="w-2/5 bg-slate-50 border border-slate-100 rounded-lg px-3 py-2 text-xs font-medium text-slate-700 focus:outline-none focus:ring-2 focus:ring-orange-400 transition-all meta-key">
+        <span class="text-slate-300 text-xs font-bold shrink-0">→</span>
+        <input type="text" value="${escHtml(value)}" placeholder="Valeur"
+               class="flex-1 bg-slate-50 border border-slate-100 rounded-lg px-3 py-2 text-xs font-medium text-slate-700 focus:outline-none focus:ring-2 focus:ring-orange-400 transition-all meta-val">
+        <button type="button"
+                class="opacity-0 group-hover:opacity-100 w-6 h-6 flex items-center justify-center rounded-lg text-slate-300 hover:text-red-400 hover:bg-red-50 transition-all remove-meta">
+            <i class="fa-solid fa-xmark text-[10px]"></i>
+        </button>`;
+    row.querySelector('.remove-meta').addEventListener('click', () => {
+        row.remove();
+        syncMeta();
+    });
+    row.querySelector('.meta-key').addEventListener('input', syncMeta);
+    row.querySelector('.meta-val').addEventListener('input', syncMeta);
+    metaContainer.appendChild(row);
+}
+
+function syncMeta() {
+    const obj = {};
+    metaContainer.querySelectorAll('.flex.items-center.gap-2.group').forEach(row => {
+        const k = row.querySelector('.meta-key').value.trim();
+        const v = row.querySelector('.meta-val').value.trim();
+        if (k !== '') obj[k] = v;
+    });
+    metaInput.value = Object.keys(obj).length > 0 ? JSON.stringify(obj) : '';
+}
+
+document.getElementById('add-metadata-row').addEventListener('click', () => {
+    renderMetaRow();
+    syncMeta();
+});
+
+// Init metadata
+if (initialMetadata && typeof initialMetadata === 'object' && !Array.isArray(initialMetadata)) {
+    Object.entries(initialMetadata).forEach(([k, v]) => renderMetaRow(k, String(v)));
+}
+syncMeta();
+
+// ─── Helpers ─────────────────────────────────────────────────────────────────
+function escHtml(str) {
+    return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/"/g, '&quot;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;');
+}
+
+// ─── Form submit: sync hidden inputs one last time ───────────────────────────
+document.getElementById('doc-edit-form').addEventListener('submit', function() {
+    syncWorkflow();
+    syncMeta();
 });
 </script>
 @endsection
