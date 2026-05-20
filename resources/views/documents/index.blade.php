@@ -150,8 +150,8 @@
                             </span>
                         </div>
                         <div class="col-span-3 flex items-center gap-3 min-w-0">
-                            <div class="w-8 h-8 rounded-lg bg-orange-50 flex items-center justify-center shrink-0 group-hover:bg-orange-600 transition-colors">
-                                <i class="fa-solid fa-file-word text-orange-500 text-xs group-hover:text-white transition-colors"></i>
+                            <div class="w-8 h-8 rounded-lg {{ strtolower(pathinfo($doc->file_path, PATHINFO_EXTENSION)) === 'pdf' ? 'bg-red-50' : 'bg-orange-50' }} flex items-center justify-center shrink-0 group-hover:bg-orange-600 transition-colors">
+                                <i class="fa-solid {{ strtolower(pathinfo($doc->file_path, PATHINFO_EXTENSION)) === 'pdf' ? 'fa-file-pdf text-red-500' : 'fa-file-word text-orange-500' }} text-xs group-hover:text-white transition-colors"></i>
                             </div>
                             <a href="{{ route('documents.show', $doc) }}"
                                class="text-sm font-bold text-slate-800 hover:text-orange-600 truncate transition-colors">
@@ -208,8 +208,8 @@
 
                     {{-- Mobile --}}
                     <div class="md:hidden flex items-start gap-3">
-                        <div class="w-10 h-10 rounded-xl bg-orange-50 flex items-center justify-center shrink-0">
-                            <i class="fa-solid fa-file-word text-orange-500 text-sm"></i>
+                        <div class="w-10 h-10 rounded-xl {{ strtolower(pathinfo($doc->file_path, PATHINFO_EXTENSION)) === 'pdf' ? 'bg-red-50' : 'bg-orange-50' }} flex items-center justify-center shrink-0">
+                            <i class="fa-solid {{ strtolower(pathinfo($doc->file_path, PATHINFO_EXTENSION)) === 'pdf' ? 'fa-file-pdf text-red-500' : 'fa-file-word text-orange-500' }} text-sm"></i>
                         </div>
                         <div class="flex-1 min-w-0">
                             <a href="{{ route('documents.show', $doc) }}"
@@ -281,7 +281,7 @@
             @foreach($documents as $doc)
             <div class="bg-white rounded-2xl border border-slate-100 shadow-sm hover:shadow-md hover:border-orange-200 transition-all group overflow-hidden">
                 <div class="aspect-square bg-slate-50 flex items-center justify-center group-hover:bg-orange-50 transition-colors relative">
-                    <i class="fa-solid fa-file-word text-4xl text-slate-200 group-hover:text-orange-400 transition-colors"></i>
+                    <i class="fa-solid {{ strtolower(pathinfo($doc->file_path, PATHINFO_EXTENSION)) === 'pdf' ? 'fa-file-pdf text-red-200 group-hover:text-red-400' : 'fa-file-word text-slate-200 group-hover:text-orange-400' }} text-4xl transition-colors"></i>
                     @if($doc->is_confidential)
                     <span class="absolute top-2 right-2 w-5 h-5 bg-red-100 rounded-full flex items-center justify-center">
                         <i class="fa-solid fa-lock text-red-500 text-[8px]"></i>
