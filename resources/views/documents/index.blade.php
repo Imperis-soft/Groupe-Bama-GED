@@ -346,10 +346,12 @@
                     const fd = new FormData($el);
                     const xhr = new XMLHttpRequest();
                     xhr.open('POST', $el.action);
+                    xhr.timeout = 300000;
                     xhr.setRequestHeader('X-CSRF-TOKEN', document.querySelector('meta[name=csrf-token]').content);
                     xhr.upload.onprogress = e => { if (e.lengthComputable) progress = Math.round(e.loaded / e.total * 100); };
-                    xhr.onload = () => { if (xhr.status < 400) window.location.href = xhr.responseURL || '{{ route('documents.index') }}'; else { uploading = false; alert('Erreur lors de l\'import.'); } };
-                    xhr.onerror = () => { uploading = false; alert('Erreur réseau.'); };
+                    xhr.onload = () => { if (xhr.status < 400) window.location.href = xhr.responseURL || '{{ route('documents.index') }}'; else { uploading = false; alert('Erreur lors de l\'import: ' + xhr.status + ' - ' + xhr.statusText); } };
+                    xhr.onerror = () => { uploading = false; alert('Erreur réseau. Vérifiez votre connexion.'); };
+                    xhr.ontimeout = () => { uploading = false; alert('Timeout: l\'upload a pris trop de temps.'); };
                     xhr.send(fd);
                   ">
                 @csrf

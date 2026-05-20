@@ -109,9 +109,18 @@ class DocumentController extends Controller
                 $ext    = strtolower($file->getClientOriginalExtension()) ?: 'docx';
                 $fileName = $ref . '.' . $ext;
                 $path     = 'documents/' . $fileName;
+
+                Log::info("Import document: début upload vers MinIO", [
+                    'path' => $path,
+                    'size' => $file->getSize(),
+                    'mime' => $file->getMimeType(),
+                ]);
+
                 $stream = fopen($file->getRealPath(), 'r');
                 Storage::disk('s3')->put($path, $stream);
                 if (is_resource($stream)) fclose($stream);
+
+                Log::info("Import document: upload MinIO terminé", ['path' => $path]);
 
                 $verificationCode = Str::random(32);
                 $categoryId = $request->input('category_id');
@@ -277,7 +286,11 @@ class DocumentController extends Controller
 
         } catch (Exception $e) {
             // Log l'erreur pour le debug si besoin
-            Log::error("Erreur génération document: " . $e->getMessage());
+            Log::error("Erreur génération document: " . $e->getMessage(), [
+                'file' => $e->getFile(),
+                'line' => $e->getLine(),
+                'trace' => $e->getTraceAsString(),
+            ]);
 
             return redirect()->back()->withErrors(['error' => 'Erreur lors de la génération du document : ' . $e->getMessage()]);
         }

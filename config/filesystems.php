@@ -56,7 +56,15 @@ return [
     'url' => env('AWS_URL'),
     'endpoint' => env('AWS_ENDPOINT'),
     'use_path_style_endpoint' => true, // OBLIGATOIRE pour MinIO
-    'throw' => true, // Change à true pour voir l'erreur exacte s'il y en a une
+    'throw' => true,
+    // Timeouts pour les uploads volumineux
+    'options' => [
+        'override_visibility_on_copy' => true,
+    ],
+    'http' => [
+        'timeout' => 300,
+        'connect_timeout' => 30,
+    ],
 ],
 
     ],

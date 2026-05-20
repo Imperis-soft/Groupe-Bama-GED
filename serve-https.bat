@@ -7,7 +7,7 @@ echo  HTTPS IP : https://192.168.1.246
 echo.
 
 :: Lancer php artisan serve en arriere-plan
-start "Laravel" php artisan serve --host=127.0.0.1 --port=8000
+start "Laravel" php -d max_execution_time=300 -d upload_max_filesize=150M -d post_max_size=160M -d memory_limit=256M artisan serve --host=127.0.0.1 --port=8000
 
 :: Attendre 2 secondes que Laravel demarre
 timeout /t 2 /nobreak > nul
