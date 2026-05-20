@@ -140,6 +140,22 @@ class DocumentController extends Controller
                 ]);
 
                 DocumentVerification::create(['document_id' => $document->id, 'verification_code' => $verificationCode]);
+
+                // Créer la version initiale (v1) dans l'historique
+                \App\Models\DocumentVersion::create([
+                    'document_id' => $document->id,
+                    'version_number' => 1,
+                    'file_path' => $path,
+                    'checksum' => hash('sha256', Storage::disk('s3')->get($path)),
+                    'change_description' => 'Version initiale (import)',
+                    'created_by' => auth()->id(),
+                    'metadata' => [
+                        'original_name' => $file->getClientOriginalName(),
+                        'size' => $file->getSize(),
+                        'mime_type' => $file->getMimeType(),
+                    ],
+                ]);
+
                 \App\Jobs\IndexDocumentText::dispatch($document->id);
 
                 // Appliquer la politique de rétention de la catégorie si applicable
@@ -273,6 +289,21 @@ class DocumentController extends Controller
             DocumentVerification::create([
                 'document_id' => $document->id,
                 'verification_code' => $verificationCode,
+            ]);
+
+            // Créer la version initiale (v1) dans l'historique
+            \App\Models\DocumentVersion::create([
+                'document_id' => $document->id,
+                'version_number' => 1,
+                'file_path' => $path,
+                'checksum' => hash('sha256', Storage::disk('s3')->get($path)),
+                'change_description' => 'Version initiale',
+                'created_by' => auth()->id(),
+                'metadata' => [
+                    'original_name' => $fileName,
+                    'size' => Storage::disk('s3')->size($path),
+                    'mime_type' => Storage::disk('s3')->mimeType($path),
+                ],
             ]);
 
             // Dispatch indexing job (OCR / text extraction)
