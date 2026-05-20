@@ -25,6 +25,10 @@ class Document extends Model
         'expires_at',
         'checksum',
         'is_confidential',
+        'legal_hold',
+        'legal_hold_at',
+        'legal_hold_by',
+        'legal_hold_reason',
         'approval_workflow',
         'retention_years',
         'metadata',
@@ -43,6 +47,8 @@ class Document extends Model
         'expires_at' => 'datetime',
         'approval_workflow' => 'array',
         'is_confidential' => 'boolean',
+        'legal_hold' => 'boolean',
+        'legal_hold_at' => 'datetime',
     ];
 
     // Scope pour la recherche en texte intégral
@@ -103,6 +109,12 @@ class Document extends Model
     public function isArchived()
     {
         return $this->status === 'archived';
+    }
+
+    // Vérifier si le document est sous gel juridique (Legal Hold)
+    public function isUnderLegalHold(): bool
+    {
+        return (bool) $this->legal_hold;
     }
 
     // Archiver le document

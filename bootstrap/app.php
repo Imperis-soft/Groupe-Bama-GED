@@ -25,6 +25,8 @@ return Application::configure(basePath: dirname(__DIR__))
         $schedule->command('documents:cleanup-expired')->dailyAt('02:00');
         // Rappels d'expiration : chaque matin à 08h00
         $schedule->command('documents:notify-expiring')->dailyAt('08:00');
+        // Purge automatique de la corbeille (documents supprimés depuis 30+ jours)
+        $schedule->command('documents:purge-trash --days=30')->dailyAt('03:00');
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         //

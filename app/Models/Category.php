@@ -10,7 +10,7 @@ class Category extends Model
     use HasFactory;
 
     // Les attributs pouvant être assignés en masse
-    protected $fillable = ['name', 'slug', 'description', 'parent_id'];
+    protected $fillable = ['name', 'slug', 'description', 'parent_id', 'default_retention_years'];
 
     public function documents()  { return $this->hasMany(Document::class); }
     public function parent()     { return $this->belongsTo(Category::class, 'parent_id'); }

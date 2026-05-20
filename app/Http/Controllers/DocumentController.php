@@ -95,6 +95,9 @@ class DocumentController extends Controller
         ]);
 
         try {
+            // Augmenter le timeout pour les uploads volumineux vers MinIO
+            set_time_limit(300);
+
             $title    = $request->input('title');
             $ref      = 'BAMA-' . strtoupper(Str::random(6));
             $fileName = $ref . '.docx';
@@ -129,6 +132,9 @@ class DocumentController extends Controller
 
                 DocumentVerification::create(['document_id' => $document->id, 'verification_code' => $verificationCode]);
                 \App\Jobs\IndexDocumentText::dispatch($document->id);
+
+                // Appliquer la politique de rétention de la catégorie si applicable
+                app(\App\Services\DocumentArchivalService::class)->applyRetentionPolicy($document);
 
                 return redirect()->route('documents.approval', $document)
                     ->with('success', 'Document importé : ' . $ref . '. Configurez maintenant le workflow d\'approbation.');
@@ -263,6 +269,9 @@ class DocumentController extends Controller
             // Dispatch indexing job (OCR / text extraction)
             \App\Jobs\IndexDocumentText::dispatch($document->id);
 
+            // Appliquer la politique de rétention de la catégorie si applicable
+            app(\App\Services\DocumentArchivalService::class)->applyRetentionPolicy($document);
+
             return redirect()->route('documents.approval', $document)
                 ->with('success', 'Document ' . $ref . ' créé avec succès. Configurez maintenant le workflow d\'approbation.');
 
@@ -364,6 +373,11 @@ class DocumentController extends Controller
         if (!$document->canEdit()) {
             abort(403, 'Vous n\'avez pas la permission de modifier ce document.');
         }
+
+        // Vérifier le Legal Hold
+        if ($document->isUnderLegalHold()) {
+            return back()->with('error', 'Ce document est sous gel juridique (Legal Hold) et ne peut pas être modifié.');
+        }
         $request->validate([
             'title' => 'required|string|max:255',
             'category_id' => 'nullable|exists:categories,id',
@@ -423,6 +437,11 @@ class DocumentController extends Controller
     // Supprimer un document (soft delete → corbeille)
     public function destroy(Document $document)
     {
+        // Vérifier le Legal Hold
+        if ($document->isUnderLegalHold()) {
+            return back()->with('error', 'Ce document est sous gel juridique (Legal Hold) et ne peut pas être supprimé.');
+        }
+
         $user = auth()->user();
         $canDelete = $user->hasRole('admin')
             || $document->creator_id === $user->id
@@ -511,6 +530,11 @@ class DocumentController extends Controller
             abort(403, 'Vous n\'avez pas la permission d\'uploader une nouvelle version.');
         }
 
+        // Vérifier le Legal Hold
+        if ($document->isUnderLegalHold()) {
+            return back()->with('error', 'Ce document est sous gel juridique (Legal Hold) et ne peut pas être modifié.');
+        }
+
         $request->validate([
             'file' => 'required|file|mimes:docx,doc,pdf|max:153600',
         ]);
@@ -530,6 +554,9 @@ class DocumentController extends Controller
         }
 
         try {
+            // Augmenter le timeout pour les uploads volumineux vers MinIO
+            set_time_limit(300);
+
             $ext      = $newExt ?: 'docx';
             $path     = 'documents/' . $document->reference . '_v' . (intval($document->version) + 1) . '.' . $ext;
 

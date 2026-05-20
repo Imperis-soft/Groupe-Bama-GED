@@ -278,6 +278,18 @@
             </div>
         </div>
 
+        {{-- Legal Hold banner --}}
+        @if($document->isUnderLegalHold())
+        <div class="mt-4 mx-4 sm:mx-6 mb-4 flex items-center gap-3 bg-orange-50 border border-orange-200 rounded-xl px-4 py-3">
+            <i class="fa-solid fa-gavel text-orange-600 text-sm shrink-0"></i>
+            <div class="flex-1">
+                <p class="text-xs font-bold text-orange-800">Gel juridique (Legal Hold) actif</p>
+                <p class="text-[10px] text-orange-600 mt-0.5">{{ $document->legal_hold_reason }} — Activé le {{ $document->legal_hold_at?->format('d/m/Y') }}</p>
+            </div>
+            <span class="px-2 py-1 bg-orange-100 text-orange-700 text-[9px] font-black uppercase rounded-lg shrink-0">Protégé</span>
+        </div>
+        @endif
+
         {{-- Lock warning banner --}}
         <div x-show="lockStatus === 'other'" x-cloak
              class="mt-4 mx-4 sm:mx-6 mb-4 flex items-center gap-3 bg-red-50 border border-red-100 rounded-xl px-4 py-3">
@@ -397,11 +409,21 @@
                 @endif
                 <a href="{{ route('documents.audit', $document) }}" class="flex items-center gap-3 w-full px-3 py-2.5 rounded-xl bg-slate-50 hover:bg-purple-50 hover:text-purple-700 text-slate-600 text-xs font-bold transition-all"><i class="fa-solid fa-clock-rotate-left text-purple-400 text-[10px]"></i>Journal d'audit</a>
                 <a href="{{ route('documents.download', $document) }}" class="flex items-center gap-3 w-full px-3 py-2.5 rounded-xl bg-slate-50 hover:bg-green-50 hover:text-green-700 text-slate-600 text-xs font-bold transition-all"><i class="fa-solid fa-download text-green-400 text-[10px]"></i>Telecharger</a>
+                <a href="{{ route('documents.export-archive', $document) }}" class="flex items-center gap-3 w-full px-3 py-2.5 rounded-xl bg-slate-50 hover:bg-indigo-50 hover:text-indigo-700 text-slate-600 text-xs font-bold transition-all"><i class="fa-solid fa-file-zipper text-indigo-400 text-[10px]"></i>Exporter archive ZIP</a>
                 @if(!$document->isArchived())
                 <form action="{{ route('documents.archive', $document) }}" method="POST">@csrf
                 <button type="submit" class="flex items-center gap-3 w-full px-3 py-2.5 rounded-xl bg-slate-50 hover:bg-amber-50 hover:text-amber-700 text-slate-600 text-xs font-bold transition-all"><i class="fa-solid fa-box-archive text-amber-400 text-[10px]"></i>Archiver</button></form>
                 @endif
                 @if(auth()->user()->hasRole('admin'))
+                    @if($document->isUnderLegalHold())
+                    <form action="{{ route('documents.legal-hold.disable', $document) }}" method="POST" onsubmit="return confirm('Lever le gel juridique ?');">@csrf @method('DELETE')
+                    <button type="submit" class="flex items-center gap-3 w-full px-3 py-2.5 rounded-xl bg-red-50 text-red-700 text-xs font-bold transition-all hover:bg-red-100"><i class="fa-solid fa-gavel text-red-500 text-[10px]"></i>Lever le gel juridique</button></form>
+                    @else
+                    <form action="{{ route('documents.legal-hold.enable', $document) }}" method="POST" x-data="{ reason: '' }">@csrf
+                        <input type="text" name="reason" x-model="reason" placeholder="Raison du gel juridique..." required class="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-1.5 text-[10px] text-slate-700 mb-1.5 focus:outline-none focus:ring-1 focus:ring-orange-400">
+                        <button type="submit" :disabled="!reason" class="flex items-center gap-3 w-full px-3 py-2.5 rounded-xl bg-slate-50 hover:bg-orange-50 hover:text-orange-700 text-slate-600 text-xs font-bold transition-all disabled:opacity-40"><i class="fa-solid fa-gavel text-orange-400 text-[10px]"></i>Activer gel juridique</button>
+                    </form>
+                    @endif
                 <form action="{{ route('documents.destroy', $document) }}" method="POST" onsubmit="return confirm('Supprimer ?');">@csrf @method('DELETE')
                 <button type="submit" class="flex items-center gap-3 w-full px-3 py-2.5 rounded-xl bg-slate-50 hover:bg-red-50 hover:text-red-700 text-slate-600 text-xs font-bold transition-all"><i class="fa-solid fa-trash-can text-red-400 text-[10px]"></i>Supprimer</button></form>
                 @endif

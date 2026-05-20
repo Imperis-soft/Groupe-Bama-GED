@@ -72,6 +72,43 @@
         </div>
     </div>
 
+    {{-- Comparaison de versions --}}
+    @if($totalVersions >= 2)
+    <div class="bg-white rounded-2xl border border-slate-100 shadow-sm p-5" x-data="{ versionA: '', versionB: '' }">
+        <div class="flex items-center gap-2 mb-3">
+            <i class="fa-solid fa-code-compare text-orange-500 text-sm"></i>
+            <h2 class="text-[10px] font-black text-slate-400 uppercase tracking-widest">Comparer deux versions</h2>
+        </div>
+        <form action="{{ route('documents.compare-versions', $document) }}" method="GET" class="flex flex-col sm:flex-row items-end gap-3">
+            <div class="flex-1 w-full">
+                <label class="block text-[10px] font-bold text-slate-500 mb-1">Version A</label>
+                <select name="version_a" x-model="versionA" required class="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-xs font-medium text-slate-700 focus:outline-none focus:ring-1 focus:ring-orange-400">
+                    <option value="">Sélectionner...</option>
+                    @foreach($versions as $v)
+                    <option value="{{ $v->version_number }}">v{{ $v->version_number }} — {{ $v->created_at->format('d/m/Y') }}</option>
+                    @endforeach
+                </select>
+            </div>
+            <div class="shrink-0 hidden sm:flex items-center justify-center w-8 h-8">
+                <i class="fa-solid fa-arrows-left-right text-slate-300 text-xs"></i>
+            </div>
+            <div class="flex-1 w-full">
+                <label class="block text-[10px] font-bold text-slate-500 mb-1">Version B</label>
+                <select name="version_b" x-model="versionB" required class="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-xs font-medium text-slate-700 focus:outline-none focus:ring-1 focus:ring-orange-400">
+                    <option value="">Sélectionner...</option>
+                    @foreach($versions as $v)
+                    <option value="{{ $v->version_number }}">v{{ $v->version_number }} — {{ $v->created_at->format('d/m/Y') }}</option>
+                    @endforeach
+                </select>
+            </div>
+            <button type="submit" :disabled="!versionA || !versionB || versionA === versionB"
+                class="inline-flex items-center gap-2 bg-orange-600 hover:bg-orange-500 disabled:bg-slate-200 disabled:text-slate-400 text-white text-xs font-black px-4 py-2.5 rounded-xl shadow-sm transition-all whitespace-nowrap">
+                <i class="fa-solid fa-code-compare text-[10px]"></i> Comparer
+            </button>
+        </form>
+    </div>
+    @endif
+
     {{-- Timeline --}}
     <div class="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
 

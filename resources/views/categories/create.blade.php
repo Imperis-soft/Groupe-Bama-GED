@@ -63,6 +63,16 @@
                               placeholder="Décrivez brièvement les documents contenus dans cette catégorie..."></textarea>
                 </div>
 
+                <div>
+                    <label class="block text-[11px] font-black text-gray-400 uppercase tracking-widest mb-2 ml-1">Politique de rétention (années)</label>
+                    <input type="number" name="default_retention_years" min="0" max="100"
+                           value="{{ old('default_retention_years') }}"
+                           class="w-full bg-gray-50 border-2 border-gray-50 rounded-2xl px-6 py-4 text-gray-900 font-bold focus:bg-white focus:border-orange-500 focus:ring-0 transition-all placeholder:text-gray-300"
+                           placeholder="ex: 5">
+                    <p class="text-[10px] text-gray-400 mt-2 ml-1 italic">Durée de conservation par défaut pour les documents de cette catégorie. Laissez vide si non applicable.</p>
+                    @error('default_retention_years') <p class="text-red-500 text-xs mt-1 ml-1">{{ $message }}</p> @enderror
+                </div>
+
                 <div class="pt-4 flex items-center justify-end gap-4">
                     <a href="{{ route('categories.index') }}" class="text-gray-400 hover:text-gray-600 font-bold text-sm transition-all">
                         Annuler

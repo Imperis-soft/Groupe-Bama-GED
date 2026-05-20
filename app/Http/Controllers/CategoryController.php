@@ -49,6 +49,7 @@ class CategoryController extends Controller
             'slug'        => 'required|string|max:255|unique:categories,slug',
             'description' => 'nullable|string',
             'parent_id'   => 'nullable|exists:categories,id',
+            'default_retention_years' => 'nullable|integer|min:0|max:100',
         ]);
 
         Category::create($data);
@@ -76,6 +77,7 @@ class CategoryController extends Controller
             'slug'        => 'required|string|max:255|unique:categories,slug,' . $category->id,
             'description' => 'nullable|string',
             'parent_id'   => 'nullable|exists:categories,id',
+            'default_retention_years' => 'nullable|integer|min:0|max:100',
         ]);
 
         $category->update($data);

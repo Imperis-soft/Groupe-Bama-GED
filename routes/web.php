@@ -21,6 +21,7 @@ use App\Http\Controllers\ReportController;
 use App\Http\Controllers\DocumentFavoriteController;
 use App\Http\Controllers\TrashController;
 use App\Http\Controllers\PasswordResetController;
+use App\Http\Controllers\DocumentArchiveController;
 use Illuminate\Support\Facades\Storage;
 
 // --- Routes Publiques ---
@@ -174,4 +175,10 @@ Route::middleware(['auth'])->group(function () {
     Route::post('/trash/{id}/restore', [TrashController::class, 'restore'])->name('trash.restore');
     Route::delete('/trash/{id}/force', [TrashController::class, 'forceDelete'])->name('trash.force-delete')->middleware('role:admin');
     Route::delete('/trash/empty', [TrashController::class, 'emptyTrash'])->name('trash.empty')->middleware('role:admin');
+
+    // Archivage avancé
+    Route::post('/documents/{document}/legal-hold', [DocumentArchiveController::class, 'enableLegalHold'])->name('documents.legal-hold.enable')->middleware('role:admin');
+    Route::delete('/documents/{document}/legal-hold', [DocumentArchiveController::class, 'disableLegalHold'])->name('documents.legal-hold.disable')->middleware('role:admin');
+    Route::get('/documents/{document}/compare-versions', [DocumentArchiveController::class, 'compareVersions'])->name('documents.compare-versions');
+    Route::get('/documents/{document}/export-archive', [DocumentArchiveController::class, 'exportArchive'])->name('documents.export-archive');
 });
