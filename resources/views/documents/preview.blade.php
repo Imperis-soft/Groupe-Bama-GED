@@ -1,6 +1,11 @@
 @extends('layouts.app')
 
 @section('content')
+@php
+    $docExt = strtolower(pathinfo($document->file_path, PATHINFO_EXTENSION));
+    $isPdf = $docExt === 'pdf';
+@endphp
+
 <div class="space-y-4">
 
     {{-- HEADER --}}
@@ -33,12 +38,12 @@
         {{-- Doc info bar --}}
         <div class="flex items-center justify-between px-4 py-3 bg-slate-50 border-b border-slate-100">
             <div class="flex items-center gap-3 min-w-0">
-                <div class="w-8 h-8 rounded-lg bg-orange-100 flex items-center justify-center shrink-0">
-                    <i class="fa-solid fa-file-word text-orange-500 text-sm"></i>
+                <div class="w-8 h-8 rounded-lg {{ $isPdf ? 'bg-red-100' : 'bg-orange-100' }} flex items-center justify-center shrink-0">
+                    <i class="fa-solid {{ $isPdf ? 'fa-file-pdf text-red-500' : 'fa-file-word text-orange-500' }} text-sm"></i>
                 </div>
                 <div class="min-w-0">
                     <p class="text-xs font-black text-slate-800 truncate">{{ $document->title }}</p>
-                    <p class="text-[9px] text-slate-400 font-mono">{{ $document->reference }} · v{{ $document->version }}</p>
+                    <p class="text-[9px] text-slate-400 font-mono">{{ $document->reference }} · v{{ $document->version }} · {{ strtoupper($docExt) }}</p>
                 </div>
             </div>
             <div class="flex items-center gap-2 shrink-0">
@@ -52,6 +57,23 @@
                 </span>
             </div>
         </div>
+
+        @if($isPdf)
+        {{-- ============================================================
+             PDF VIEWER (iframe natif du navigateur)
+        ============================================================ --}}
+        <div class="w-full" style="height: 85vh;">
+            <iframe
+                src="{{ route('documents.stream', $document) }}"
+                class="w-full h-full border-0"
+                title="Prévisualisation PDF - {{ $document->title }}">
+            </iframe>
+        </div>
+
+        @else
+        {{-- ============================================================
+             WORD VIEWER (Mammoth.js)
+        ============================================================ --}}
 
         {{-- Loading --}}
         <div id="loadingState" class="flex flex-col items-center justify-center py-20 text-center">
@@ -89,11 +111,13 @@
                 <i class="fa-solid fa-rotate-right text-[10px]"></i> Réessayer
             </button>
         </div>
+        @endif
 
     </div>
 
 </div>
 
+@if(!$isPdf)
 <script src="https://cdn.jsdelivr.net/npm/mammoth@1.4.21/mammoth.browser.min.js"></script>
 <script>
 const DOC_URL = '{{ route('documents.stream', $document) }}';
@@ -134,4 +158,5 @@ loadPreview();
 #previewContent td, #previewContent th { border: 1px solid #e2e8f0; padding: .5em .75em; font-size: .9em; }
 #previewContent th { background: #f8fafc; font-weight: 700; }
 </style>
+@endif
 @endsection

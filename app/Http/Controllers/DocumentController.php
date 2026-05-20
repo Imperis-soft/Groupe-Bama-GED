@@ -545,7 +545,7 @@ class DocumentController extends Controller
         return view('documents.audit', compact('document', 'auditLogs'));
     }
 
-    // Streamer le fichier DOCX depuis MinIO vers le navigateur (évite les problèmes CORS)
+    // Streamer le fichier depuis MinIO vers le navigateur (évite les problèmes CORS)
     public function stream(Document $document)
     {
         if (!$document->canView()) {
@@ -556,13 +556,20 @@ class DocumentController extends Controller
             abort(404, 'Fichier introuvable.');
         }
 
+        $ext = strtolower(pathinfo($document->file_path, PATHINFO_EXTENSION));
+        $contentType = match($ext) {
+            'pdf' => 'application/pdf',
+            'doc' => 'application/msword',
+            default => 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        };
+
         $stream = Storage::disk('s3')->readStream($document->file_path);
 
         return response()->stream(function () use ($stream) {
             fpassthru($stream);
         }, 200, [
-            'Content-Type' => 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-            'Content-Disposition' => 'inline; filename="' . $document->reference . '.docx"',
+            'Content-Type' => $contentType,
+            'Content-Disposition' => 'inline; filename="' . $document->reference . '.' . $ext . '"',
             'Cache-Control' => 'no-cache',
         ]);
     }
