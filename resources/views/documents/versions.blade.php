@@ -4,6 +4,7 @@
 @php
     $currentVersion = $document->version;
     $totalVersions  = $versions->total();
+    $docExt = strtolower(pathinfo($document->file_path, PATHINFO_EXTENSION));
 @endphp
 
 <div class="space-y-5" x-data="{ uploadModal: false, dragging: false, fileName: '' }">
@@ -229,7 +230,7 @@
         </div>
         <div class="flex-1 text-center sm:text-left">
             <p class="text-sm font-black text-slate-800">Vous avez modifié le document ?</p>
-            <p class="text-xs text-slate-500 mt-0.5">Uploadez votre fichier Word pour créer la version v{{ $currentVersion + 1 }}.</p>
+            <p class="text-xs text-slate-500 mt-0.5">Uploadez votre fichier {{ $docExt === 'pdf' ? 'PDF' : 'Word' }} pour créer la version v{{ $currentVersion + 1 }}.</p>
         </div>
         <button @click="uploadModal = true"
             class="inline-flex items-center gap-2 bg-orange-600 hover:bg-orange-500 active:scale-95 text-white text-xs font-black px-5 py-2.5 rounded-xl shadow-lg shadow-orange-200 transition-all whitespace-nowrap">
@@ -279,7 +280,7 @@
                     @drop.prevent="
                         dragging = false;
                         const f = $event.dataTransfer.files[0];
-                        if (f && (f.name.endsWith('.docx') || f.name.endsWith('.doc'))) {
+                        if (f && (f.name.endsWith('.docx') || f.name.endsWith('.doc') || f.name.endsWith('.pdf'))) {
                             fileName = f.name;
                             const dt = new DataTransfer(); dt.items.add(f);
                             $refs.fileInput.files = dt.files;
@@ -296,10 +297,10 @@
 
                     <template x-if="!fileName">
                         <div>
-                            <i class="fa-solid fa-file-word text-3xl text-slate-300 mb-2"></i>
-                            <p class="text-xs font-bold text-slate-500">Glissez votre fichier Word ici</p>
+                            <i class="fa-solid {{ $docExt === 'pdf' ? 'fa-file-pdf text-red-300' : 'fa-file-word text-slate-300' }} text-3xl mb-2"></i>
+                            <p class="text-xs font-bold text-slate-500">Glissez votre fichier {{ $docExt === 'pdf' ? 'PDF' : 'Word' }} ici</p>
                             <p class="text-[10px] text-slate-400 mt-1">ou cliquez pour parcourir</p>
-                            <p class="text-[9px] text-slate-300 mt-2 font-mono">.docx / .doc — max 50 Mo</p>
+                            <p class="text-[9px] text-slate-300 mt-2 font-mono">{{ $docExt === 'pdf' ? '.pdf' : '.docx / .doc' }} — max 150 Mo</p>
                         </div>
                     </template>
                     <template x-if="fileName">

@@ -630,10 +630,11 @@
 
                 <template x-if="!fileName">
                     <div>
-                        <i class="fa-solid fa-file-word text-3xl text-slate-300 mb-2"></i>
-                        <p class="text-xs font-bold text-slate-500">Glissez votre fichier Word ici</p>
+                        @php $docExt = strtolower(pathinfo($document->file_path, PATHINFO_EXTENSION)); @endphp
+                        <i class="fa-solid {{ $docExt === 'pdf' ? 'fa-file-pdf text-red-300' : 'fa-file-word text-slate-300' }} text-3xl mb-2"></i>
+                        <p class="text-xs font-bold text-slate-500">Glissez votre fichier {{ $docExt === 'pdf' ? 'PDF' : 'Word' }} ici</p>
                         <p class="text-[10px] text-slate-400 mt-1">ou cliquez pour parcourir</p>
-                        <p class="text-[9px] text-slate-300 mt-2 font-mono">.docx / .doc — max 50 Mo</p>
+                        <p class="text-[9px] text-slate-300 mt-2 font-mono">{{ $docExt === 'pdf' ? '.pdf' : '.docx / .doc' }} — max 150 Mo</p>
                     </div>
                 </template>
                 <template x-if="fileName">
@@ -682,7 +683,7 @@ function wordUpload() {
         handleDrop(e) {
             this.dragging = false;
             const f = e.dataTransfer.files[0];
-            if (f && (f.name.endsWith('.docx') || f.name.endsWith('.doc'))) {
+            if (f && (f.name.endsWith('.docx') || f.name.endsWith('.doc') || f.name.endsWith('.pdf'))) {
                 this.fileName = f.name;
                 const dt = new DataTransfer(); dt.items.add(f);
                 this.$refs.fileInput.files = dt.files;
