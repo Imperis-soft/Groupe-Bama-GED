@@ -1,18 +1,42 @@
+{
+    servers {
+        max_header_size 5MB
+    }
+}
+
 https://localhost {
     tls docker/nginx/certs/localhost.crt docker/nginx/certs/localhost.key
+
+    request_body {
+        max_size 200MB
+    }
+
     reverse_proxy 127.0.0.1:8000 {
         header_up X-Forwarded-Proto https
         header_up X-Forwarded-For {remote_host}
         header_up Host {host}
+        transport http {
+            response_header_timeout 300s
+            dial_timeout 30s
+        }
     }
 }
 
 https://192.168.1.246 {
     tls docker/nginx/certs/localhost.crt docker/nginx/certs/localhost.key
+
+    request_body {
+        max_size 200MB
+    }
+
     reverse_proxy 127.0.0.1:8000 {
         header_up X-Forwarded-Proto https
         header_up X-Forwarded-For {remote_host}
         header_up Host {host}
+        transport http {
+            response_header_timeout 300s
+            dial_timeout 30s
+        }
     }
 }
 
