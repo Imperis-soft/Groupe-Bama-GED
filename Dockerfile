@@ -35,6 +35,15 @@ RUN { \
     echo 'opcache.validate_timestamps=0'; \
 } > /usr/local/etc/php/conf.d/opcache-optimized.ini
 
+# Configuration PHP pour les uploads volumineux
+RUN { \
+    echo 'upload_max_filesize=150M'; \
+    echo 'post_max_size=160M'; \
+    echo 'memory_limit=256M'; \
+    echo 'max_execution_time=300'; \
+    echo 'max_input_time=300'; \
+} > /usr/local/etc/php/conf.d/uploads.ini
+
 # --- Stage 3: Dependances ---
 FROM base AS dependencies
 WORKDIR /var/www

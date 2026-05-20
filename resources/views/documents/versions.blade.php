@@ -252,7 +252,7 @@
                     class="relative border-2 border-dashed rounded-xl p-6 text-center transition-all cursor-pointer"
                     @click="$refs.fileInput.click()">
 
-                    <input type="file" name="file" accept=".docx,.doc" required
+                    <input type="file" name="file" accept=".docx,.doc,.pdf" required
                            x-ref="fileInput"
                            @change="const f = $event.target.files[0]; if(f) fileName = f.name;"
                            class="hidden">

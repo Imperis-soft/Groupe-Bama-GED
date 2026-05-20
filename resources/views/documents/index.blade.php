@@ -368,7 +368,7 @@
                          @dragover.prevent="dragging = true"
                          @dragleave.prevent="dragging = false"
                          @drop.prevent="dragging = false; fname = $event.dataTransfer.files[0]?.name; $refs.importFile.files = $event.dataTransfer.files">
-                        <input type="file" name="import_file" accept=".docx,.doc" x-ref="importFile" required
+                        <input type="file" name="import_file" accept=".docx,.doc,.pdf" x-ref="importFile" required
                                @change="fname = $event.target.files[0]?.name" class="hidden">
                         <div x-show="!fname">
                             <i class="fa-solid fa-cloud-arrow-up text-slate-300 text-2xl mb-2" :class="dragging && 'text-green-500'"></i>

@@ -91,7 +91,7 @@ class DocumentController extends Controller
             'tags'           => 'nullable|string|max:1000',
             'approval_workflow' => 'nullable|json',
             'metadata'       => ['nullable', new \App\Rules\ValidMetadata()],
-            'import_file'    => 'nullable|file|mimes:docx,doc|max:51200',
+            'import_file'    => 'nullable|file|mimes:docx,doc,pdf|max:153600',
         ]);
 
         try {
@@ -103,6 +103,9 @@ class DocumentController extends Controller
             // Mode import : utiliser le fichier uploadé directement
             if ($request->boolean('import_mode') && $request->hasFile('import_file')) {
                 $file   = $request->file('import_file');
+                $ext    = strtolower($file->getClientOriginalExtension()) ?: 'docx';
+                $fileName = $ref . '.' . $ext;
+                $path     = 'documents/' . $fileName;
                 $stream = fopen($file->getRealPath(), 'r');
                 Storage::disk('s3')->put($path, $stream);
                 if (is_resource($stream)) fclose($stream);
@@ -509,12 +512,26 @@ class DocumentController extends Controller
         }
 
         $request->validate([
-            'file' => 'required|file|mimes:docx,doc|max:51200',
+            'file' => 'required|file|mimes:docx,doc,pdf|max:153600',
         ]);
 
+        // Vérifier que le format de la nouvelle version correspond au format actuel du document
+        $file        = $request->file('file');
+        $newExt      = strtolower($file->getClientOriginalExtension());
+        $currentExt  = strtolower(pathinfo($document->file_path, PATHINFO_EXTENSION));
+
+        // Normaliser : doc et docx sont considérés comme même famille
+        $normalizeExt = fn($e) => in_array($e, ['doc', 'docx']) ? 'word' : $e;
+
+        if ($normalizeExt($newExt) !== $normalizeExt($currentExt)) {
+            return back()->withErrors([
+                'file' => "Le format du fichier uploadé (.{$newExt}) ne correspond pas au format actuel du document (.{$currentExt}). Veuillez uploader un fichier du même type."
+            ]);
+        }
+
         try {
-            $file     = $request->file('file');
-            $path     = 'documents/' . $document->reference . '_v' . (intval($document->version) + 1) . '.docx';
+            $ext      = $newExt ?: 'docx';
+            $path     = 'documents/' . $document->reference . '_v' . (intval($document->version) + 1) . '.' . $ext;
 
             // Upload vers MinIO
             Storage::disk('s3')->put($path, file_get_contents($file->getRealPath()));
