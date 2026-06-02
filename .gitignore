@@ -22,3 +22,7 @@
 Homestead.json
 Homestead.yaml
 Thumbs.db
+
+# Imperis SARL — outils internes (ne pas committer)
+/imperis-tools/licenses-history.json
+/imperis-tools/GUIDE-RENOUVELLEMENT-LICENCE.md

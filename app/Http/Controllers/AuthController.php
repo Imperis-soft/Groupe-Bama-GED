@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\License;
 use App\Models\LoginHistory;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -12,11 +13,21 @@ class AuthController extends Controller
 {
     public function showLogin()
     {
+        // Vérifier si la licence est expirée
+        if (! \App\Models\License::isSystemLicensed()) {
+            return redirect()->route('license.expired');
+        }
+
         return view('auth.login');
     }
 
     public function login(Request $request)
     {
+        // Vérifier la licence avant toute tentative de connexion
+        if (! License::isSystemLicensed()) {
+            return redirect()->route('license.expired');
+        }
+
         $credentials = $request->validate([
             'email'    => ['required', 'email'],
             'password' => ['required'],

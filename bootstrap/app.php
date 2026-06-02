@@ -19,6 +19,12 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->validateCsrfTokens(except: [
             '/webdav/*',
         ]);
+
+        // Alias pour les middlewares personnalisés
+        $middleware->alias([
+            'role' => \App\Http\Middleware\RoleMiddleware::class,
+            'license' => \App\Http\Middleware\CheckLicense::class,
+        ]);
     })
     ->withSchedule(function (\Illuminate\Console\Scheduling\Schedule $schedule): void {
         // Nettoyage des documents expirés chaque nuit à 02h00

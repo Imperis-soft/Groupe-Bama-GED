@@ -22,7 +22,13 @@ use App\Http\Controllers\DocumentFavoriteController;
 use App\Http\Controllers\TrashController;
 use App\Http\Controllers\PasswordResetController;
 use App\Http\Controllers\DocumentArchiveController;
+use App\Http\Controllers\LicenseController;
 use Illuminate\Support\Facades\Storage;
+
+// --- Routes de Licence (toujours accessibles) ---
+Route::get('/license/expired', [LicenseController::class, 'expired'])->name('license.expired');
+Route::get('/license/activate', [LicenseController::class, 'showActivate'])->name('license.activate');
+Route::post('/license/activate', [LicenseController::class, 'activate'])->name('license.activate.submit');
 
 // --- Routes Publiques ---
 Route::get('/login', [AuthController::class, 'showLogin'])->name('login');
@@ -62,8 +68,8 @@ Route::get('/', function () {
     return view('welcome');
 })->name('home');
 
-// --- Routes Protégées (nécessitent d'être connecté) ---
-Route::middleware(['auth'])->group(function () {
+// --- Routes Protégées (nécessitent d'être connecté + licence valide) ---
+Route::middleware(['auth', 'license'])->group(function () {
 
     Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
 
