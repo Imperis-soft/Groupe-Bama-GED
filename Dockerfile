@@ -86,7 +86,15 @@ COPY --from=dependencies /var/www/vendor/laravel/framework/src/Illuminate/Pagina
      ./vendor/laravel/framework/src/Illuminate/Pagination/resources/views
 RUN npm run build
 
-# --- Stage 5 : Application (PHP-FPM) ---
+# --- Stage 5 : Nginx (conf + fichiers publics intégrés, aucun volume partagé) ---
+# Placé AVANT l'application : un « docker build » sans --target produit ainsi l'image PHP, jamais nginx.
+FROM nginx:1.25-alpine AS nginx
+COPY docker/nginx/ged.conf /etc/nginx/conf.d/default.conf
+COPY public /var/www/public
+COPY --from=assets /var/www/public/build /var/www/public/build
+EXPOSE 80
+
+# --- Stage 6 : Application (PHP-FPM) — cible par défaut ---
 FROM base AS app
 WORKDIR /var/www
 
@@ -115,9 +123,3 @@ EXPOSE 9000
 
 ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
 CMD ["php-fpm"]
-
-# --- Stage 6 : Nginx (conf + fichiers publics intégrés, aucun volume partagé) ---
-FROM nginx:1.25-alpine AS nginx
-COPY docker/nginx/ged.conf /etc/nginx/conf.d/default.conf
-COPY --from=app /var/www/public /var/www/public
-EXPOSE 80
