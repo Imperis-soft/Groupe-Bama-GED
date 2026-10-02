@@ -117,7 +117,8 @@ RUN mkdir -p storage/framework/cache/data \
     && rm -rf /tmp/* /var/tmp/*
 
 COPY docker/entrypoint.sh /usr/local/bin/entrypoint.sh
-RUN chmod +x /usr/local/bin/entrypoint.sh
+# Retire d'éventuels CRLF (build depuis Windows) avant de rendre le script exécutable
+RUN sed -i 's/\r$//' /usr/local/bin/entrypoint.sh && chmod +x /usr/local/bin/entrypoint.sh
 
 EXPOSE 9000
 
