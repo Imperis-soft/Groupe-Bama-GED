@@ -1,14 +1,14 @@
 # ─────────────────────────────────────────────────────────────
-#  Stack Portainer « grpbama » — Groupe Bama GED
+#  Stack Portainer « ged » — GED
 #  Cohabite avec Notaris sur le VPS Imperissoft :
-#   - MySQL partagé (conteneur « mysql », réseau externe db_mysql_mynetwork), base dédiée grpbama_db
-#   - noms préfixés grpbama_ partout, port hôte 8003 (8002 = Notaris)
+#   - MySQL partagé (conteneur « mysql », réseau externe db_mysql_mynetwork), base dédiée ged_db
+#   - noms préfixés ged_ partout, port hôte 8003 (8002 = Notaris)
 #  Aucun secret ici : toutes les valeurs ${…} sont saisies dans les variables d'environnement
 #  de la stack Portainer (liste complète : docker/portainer.env.example).
 # ─────────────────────────────────────────────────────────────
 
 x-laravel-env: &laravel-env
-  APP_NAME: ${APP_NAME:-Groupe Bama}
+  APP_NAME: ${APP_NAME:-GED}
   APP_ENV: production
   APP_KEY: ${APP_KEY:?APP_KEY manquante}
   APP_DEBUG: "false"
@@ -27,8 +27,8 @@ x-laravel-env: &laravel-env
   DB_CONNECTION: mysql
   DB_HOST: mysql
   DB_PORT: "3306"
-  DB_DATABASE: ${DB_DATABASE:-grpbama_db}
-  DB_USERNAME: ${DB_USERNAME:-grpbama_user}
+  DB_DATABASE: ${DB_DATABASE:-ged_db}
+  DB_USERNAME: ${DB_USERNAME:-ged_user}
   DB_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD manquant}
   DB_CHARSET: utf8mb4
   DB_COLLATION: utf8mb4_unicode_ci
@@ -60,19 +60,19 @@ x-laravel-env: &laravel-env
   MAIL_PORT: ${MAIL_PORT:-587}
   MAIL_USERNAME: ${MAIL_USERNAME:-}
   MAIL_PASSWORD: ${MAIL_PASSWORD:-}
-  MAIL_FROM_ADDRESS: ${MAIL_FROM_ADDRESS:-infos@groupe-bama-ged.imperis.com}
-  MAIL_FROM_NAME: ${MAIL_FROM_NAME:-Groupe Bama}
+  MAIL_FROM_ADDRESS: ${MAIL_FROM_ADDRESS:-infos@ged.imperis.com}
+  MAIL_FROM_NAME: ${MAIL_FROM_NAME:-GED}
 
   SAAS_SUPER_ADMIN_EMAIL: ${SAAS_SUPER_ADMIN_EMAIL:-contact@imperis.com}
 
 x-laravel: &laravel
-  image: imperissoft/grpbama:${IMAGE_TAG:-latest}
+  image: imperissoft/ged:${IMAGE_TAG:-latest}
   restart: unless-stopped
   environment: *laravel-env
   volumes:
-    - grpbama_storage:/var/www/storage
+    - ged_storage:/var/www/storage
   networks:
-    - grpbama_network
+    - ged_network
     - db_mysql_mynetwork
 
 services:
@@ -80,7 +80,7 @@ services:
   # PHP-FPM : migrations au démarrage, puis sert l'application
   app:
     <<: *laravel
-    container_name: grpbama_app
+    container_name: ged_app
     healthcheck:
       test: ["CMD-SHELL", "test -f /tmp/ready && pidof php-fpm >/dev/null || exit 1"]
       interval: 30s
@@ -96,7 +96,7 @@ services:
   # File d'attente : indexation / OCR / aperçus LibreOffice, exports, notifications
   queue:
     <<: *laravel
-    container_name: grpbama_queue
+    container_name: ged_queue
     command: ["php", "artisan", "queue:work", "--tries=3", "--timeout=1800", "--sleep=3", "--max-time=3600"]
     stop_grace_period: 60s
     depends_on:
@@ -111,7 +111,7 @@ services:
   # Planificateur : rappels d'échéance, conservation, intégrité, corbeille
   scheduler:
     <<: *laravel
-    container_name: grpbama_scheduler
+    container_name: ged_scheduler
     command: ["php", "artisan", "schedule:work"]
     depends_on:
       app:
@@ -124,8 +124,8 @@ services:
 
   # Nginx : conf et public/ intégrés à l'image (pas de volume partagé avec PHP)
   web:
-    image: imperissoft/grpbama-nginx:${IMAGE_TAG:-latest}
-    container_name: grpbama_nginx
+    image: imperissoft/ged-nginx:${IMAGE_TAG:-latest}
+    container_name: ged_nginx
     restart: unless-stopped
     ports:
       - "${HOST_PORT:-8003}:80"
@@ -133,7 +133,7 @@ services:
       app:
         condition: service_healthy
     networks:
-      - grpbama_network
+      - ged_network
     healthcheck:
       test: ["CMD-SHELL", "wget -q --spider http://127.0.0.1/up || exit 1"]
       interval: 30s
@@ -147,12 +147,12 @@ services:
           memory: 128M
 
 volumes:
-  grpbama_storage:
-    name: grpbama_storage
+  ged_storage:
+    name: ged_storage
 
 networks:
-  grpbama_network:
-    name: grpbama_network
+  ged_network:
+    name: ged_network
     driver: bridge
   # Réseau du MySQL partagé (déjà existant sur le VPS — ne pas le recréer)
   db_mysql_mynetwork:

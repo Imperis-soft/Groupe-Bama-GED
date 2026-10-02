@@ -1,6 +1,6 @@
 # Deux images construites depuis ce fichier (voir docker/build-push.sh) :
-#   --target app   → imperissoft/grpbama        (PHP-FPM : application, file d'attente, planificateur)
-#   --target nginx → imperissoft/grpbama-nginx  (nginx avec la conf et public/ intégrés)
+#   --target app   → imperissoft/ged        (PHP-FPM : application, file d'attente, planificateur)
+#   --target nginx → imperissoft/ged-nginx  (nginx avec la conf et public/ intégrés)
 # Toujours builder en --platform linux/amd64 (le VPS est en amd64).
 
 # --- Stage 1 : Composer ---
@@ -118,6 +118,6 @@ CMD ["php-fpm"]
 
 # --- Stage 6 : Nginx (conf + fichiers publics intégrés, aucun volume partagé) ---
 FROM nginx:1.25-alpine AS nginx
-COPY docker/nginx/grpbama.conf /etc/nginx/conf.d/default.conf
+COPY docker/nginx/ged.conf /etc/nginx/conf.d/default.conf
 COPY --from=app /var/www/public /var/www/public
 EXPOSE 80

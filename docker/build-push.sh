@@ -7,8 +7,8 @@ set -e
 cd "$(dirname "$0")/.."
 
 TAG="${1:-$(date +%Y.%m.%d-%H%M)}"
-APP_IMAGE=imperissoft/grpbama
-NGINX_IMAGE=imperissoft/grpbama-nginx
+APP_IMAGE=imperissoft/ged
+NGINX_IMAGE=imperissoft/ged-nginx
 
 echo "→ Build ${APP_IMAGE}:${TAG}"
 docker build --platform linux/amd64 --target app \
@@ -25,5 +25,5 @@ docker push "${NGINX_IMAGE}:${TAG}"
 docker push "${NGINX_IMAGE}:latest"
 
 echo "✓ Images publiées : ${TAG} et latest"
-echo "  Sur le VPS : Portainer → stack grpbama → Pull and redeploy"
-echo "  (ou : docker compose -p grpbama pull && docker compose -p grpbama up -d)"
+echo "  Sur le VPS : Portainer → stack ged → Pull and redeploy"
+echo "  (ou : docker compose -p ged pull && docker compose -p ged up -d)"
