@@ -2,7 +2,7 @@
 #  Stack Portainer « ged » — GED
 #  Cohabite avec Notaris sur le VPS Imperissoft :
 #   - MySQL partagé (conteneur « mysql », réseau externe db_mysql_mynetwork), base dédiée ged_db
-#   - noms préfixés ged_ partout, port hôte 8003 (8002 = Notaris)
+#   - noms préfixés ged_ partout, port hôte 8023 (8002 = Notaris)
 #  Aucun secret ici : toutes les valeurs ${…} sont saisies dans les variables d'environnement
 #  de la stack Portainer (liste complète : docker/portainer.env.example).
 # ─────────────────────────────────────────────────────────────
@@ -128,7 +128,7 @@ services:
     container_name: ged_nginx
     restart: unless-stopped
     ports:
-      - "${HOST_PORT:-8003}:80"
+      - "${HOST_PORT:-8023}:80"
     depends_on:
       app:
         condition: service_healthy

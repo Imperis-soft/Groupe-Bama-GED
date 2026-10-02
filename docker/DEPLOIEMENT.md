@@ -7,7 +7,7 @@ Le VPS est partagé avec **Notaris** (stack `notaris_*`, port 8002, base `ntr2`)
 | Stack Portainer    | `ged`                                         |
 | Conteneurs         | `ged_app`, `ged_queue`, `ged_scheduler`, `ged_nginx` |
 | Images             | `imperissoft/ged`, `imperissoft/ged-nginx` |
-| Port hôte          | **8003** → nginx:80                               |
+| Port hôte          | **8023** → nginx:80                               |
 | Base               | `ged_db` / utilisateur `ged_user` sur le MySQL partagé (`mysql:3306`) |
 | Réseaux            | `ged_network` (interne) + `db_mysql_mynetwork` (externe, PHP uniquement) |
 | Volume             | `ged_storage` (logs, sessions, cache, fichiers temporaires) |
@@ -26,7 +26,7 @@ Le VPS est partagé avec **Notaris** (stack `notaris_*`, port 8002, base `ntr2`)
 
 ## Premier déploiement
 
-1. **Vérifier le port** sur le VPS : `ss -tlnp | grep 8003` (doit être vide).
+1. **Vérifier le port** sur le VPS : `ss -tlnp | grep 8023` (doit être vide).
 2. **Base de données** : remplacer le mot de passe dans `docker/mysql-init.sql`, puis
    `docker exec -i mysql mysql -uroot -p < mysql-init.sql`
 3. **Images** (sur le Mac) : `docker login` puis `./docker/build-push.sh`
@@ -43,7 +43,7 @@ Le VPS est partagé avec **Notaris** (stack `notaris_*`, port 8002, base `ntr2`)
        client_max_body_size 160M;
 
        location / {
-           proxy_pass http://127.0.0.1:8003;
+           proxy_pass http://127.0.0.1:8023;
            proxy_set_header Host $host;
            proxy_set_header X-Real-IP $remote_addr;
            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
@@ -74,7 +74,7 @@ Les migrations tournent automatiquement au démarrage de `ged_app`. En cas d'éc
 ```sh
 docker logs ged_app --tail 50
 docker ps --filter name=ged_          # 4 conteneurs, app et web « healthy »
-curl -I http://localhost:8003/up          # 200
+curl -I http://localhost:8023/up          # 200
 curl -I http://localhost:8002             # Notaris répond toujours
 ```
 
