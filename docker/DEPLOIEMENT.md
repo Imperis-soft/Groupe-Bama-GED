@@ -73,7 +73,7 @@ Les migrations tournent automatiquement au démarrage de `ged_app`. En cas d'éc
 
 ```sh
 docker logs ged_app --tail 50
-docker ps --filter name=ged_          # 4 conteneurs, app et web « healthy »
+docker ps --filter name=ged_          # 4 conteneurs « Up » (pas en Restarting)
 curl -I http://localhost:8023/up          # 200
 curl -I http://localhost:8002             # Notaris répond toujours
 ```
