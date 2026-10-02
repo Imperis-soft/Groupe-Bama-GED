@@ -27,7 +27,7 @@
             </p>
         </div>
         <div class="flex items-center gap-2 self-start sm:self-auto">
-            @if($document->canEdit())
+            @if($document->canEdit() && !$document->isInWorkflow())
             <button @click="uploadModal = true"
                 class="inline-flex items-center gap-2 bg-orange-600 hover:bg-orange-500 active:scale-95 text-white text-xs font-black px-4 py-2.5 rounded-xl shadow-lg shadow-orange-200 transition-all">
                 <i class="fa-solid fa-upload text-[10px]"></i> Nouvelle version
@@ -193,7 +193,7 @@
                             <div class="inline-flex items-center gap-1.5 px-3 py-1.5 bg-orange-50 text-orange-500 rounded-xl text-[9px] font-black uppercase">
                                 <i class="fa-solid fa-circle-check text-[8px]"></i> En cours
                             </div>
-                            @else
+                            @elseif($document->canEdit() && !$document->isInWorkflow())
                             <form action="{{ route('documents.versions.restore', [$document, $version->version_number]) }}" method="POST"
                                   onsubmit="return confirm('Restaurer la version {{ $version->version_number }} comme version actuelle ?');">
                                 @csrf
@@ -223,7 +223,7 @@
     </div>
 
     {{-- CTA upload si canEdit --}}
-    @if($document->canEdit())
+    @if($document->canEdit() && !$document->isInWorkflow())
     <div class="bg-gradient-to-r from-orange-50 to-amber-50 border border-orange-100 rounded-2xl px-6 py-5 flex flex-col sm:flex-row items-center gap-4">
         <div class="w-10 h-10 rounded-2xl bg-orange-100 flex items-center justify-center shrink-0">
             <i class="fa-solid fa-upload text-orange-500 text-sm"></i>

@@ -77,6 +77,30 @@
                                placeholder="Bamako, Mali"
                                class="w-full bg-slate-50 border border-slate-100 rounded-xl px-4 py-2.5 text-sm font-medium text-slate-800 placeholder-slate-300 focus:outline-none focus:ring-2 focus:ring-orange-500 transition-all">
                     </div>
+
+                    <div class="sm:col-span-2">
+                        <input type="hidden" name="manage_departments" value="1">
+                        <label class="block text-[9px] font-black text-slate-500 uppercase tracking-widest mb-1.5">Service(s) <span class="text-red-500">*</span></label>
+                        @if($departments->isEmpty())
+                        <p class="text-xs text-red-500">Aucun service disponible : contactez {{ config('saas.vendor_name') }} ({{ config('saas.support_email') }}).</p>
+                        @else
+                        @php $selectedDepartments = collect(old('departments', isset($user) ? $user->departments->pluck('id')->all() : []))->map(fn ($id) => (int) $id)->all(); @endphp
+                        <div class="flex flex-wrap gap-2">
+                            @foreach($departments as $department)
+                            <label class="cursor-pointer">
+                                <input type="checkbox" name="departments[]" value="{{ $department->id }}" class="peer sr-only"
+                                       {{ in_array($department->id, $selectedDepartments, true) ? 'checked' : '' }}>
+                                <span class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-slate-100 bg-slate-50 text-xs font-bold text-slate-500 transition-all
+                                             peer-checked:bg-orange-50 peer-checked:border-orange-200 peer-checked:text-orange-600">
+                                    <i class="fa-solid fa-sitemap text-[9px]"></i> {{ $department->name }}
+                                </span>
+                            </label>
+                            @endforeach
+                        </div>
+                        @error('departments') <p class="text-red-500 text-[10px] font-bold mt-1.5">{{ $message }}</p> @enderror
+                        <p class="text-[10px] text-slate-400 mt-1.5">Obligatoire. Donne accès aux catégories ouvertes à ces services.</p>
+                        @endif
+                    </div>
                 </div>
 
                 <div class="flex gap-3 pt-2">

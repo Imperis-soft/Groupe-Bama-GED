@@ -1,152 +1,159 @@
+# ─────────────────────────────────────────────────────────────
+#  Stack Portainer « grpbama » — Groupe Bama GED
+#  Cohabite avec Notaris sur le VPS Imperissoft :
+#   - MySQL partagé (conteneur « mysql », réseau externe db_mysql_mynetwork), base dédiée grpbama_db
+#   - noms préfixés grpbama_ partout, port hôte 8003 (8002 = Notaris)
+#  Aucun secret ici : toutes les valeurs ${…} sont saisies dans les variables d'environnement
+#  de la stack Portainer (liste complète : docker/portainer.env.example).
+# ─────────────────────────────────────────────────────────────
+
+x-laravel-env: &laravel-env
+  APP_NAME: ${APP_NAME:-Groupe Bama}
+  APP_ENV: production
+  APP_KEY: ${APP_KEY:?APP_KEY manquante}
+  APP_DEBUG: "false"
+  APP_URL: ${APP_URL:?APP_URL manquante}
+  APP_LOCALE: fr
+  APP_FALLBACK_LOCALE: fr
+  APP_FAKER_LOCALE: fr_FR
+  APP_MAINTENANCE_DRIVER: file
+  BCRYPT_ROUNDS: "12"
+  LOG_CHANNEL: stack
+  LOG_STACK: daily
+  LOG_DAILY_DAYS: "14"
+  LOG_DEPRECATIONS_CHANNEL: "null"
+  LOG_LEVEL: ${LOG_LEVEL:-error}
+
+  DB_CONNECTION: mysql
+  DB_HOST: mysql
+  DB_PORT: "3306"
+  DB_DATABASE: ${DB_DATABASE:-grpbama_db}
+  DB_USERNAME: ${DB_USERNAME:-grpbama_user}
+  DB_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD manquant}
+  DB_CHARSET: utf8mb4
+  DB_COLLATION: utf8mb4_unicode_ci
+
+  SESSION_DRIVER: file
+  SESSION_LIFETIME: "120"
+  SESSION_ENCRYPT: "false"
+  SESSION_PATH: /
+  SESSION_DOMAIN: ${SESSION_DOMAIN:?SESSION_DOMAIN manquant}
+  SESSION_SECURE_COOKIE: "true"
+  SESSION_SAME_SITE: lax
+  BROADCAST_CONNECTION: log
+  QUEUE_CONNECTION: database
+  DB_QUEUE_RETRY_AFTER: "1900"
+  CACHE_STORE: file
+
+  FILESYSTEM_DISK: minio
+  AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:?AWS_ACCESS_KEY_ID manquant}
+  AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:?AWS_SECRET_ACCESS_KEY manquant}
+  AWS_DEFAULT_REGION: ${AWS_DEFAULT_REGION:-us-east-1}
+  AWS_BUCKET: ${AWS_BUCKET:-ged}
+  AWS_URL: ${AWS_URL:?AWS_URL manquant}
+  AWS_ENDPOINT: ${AWS_ENDPOINT:?AWS_ENDPOINT manquant}
+  AWS_USE_PATH_STYLE_ENDPOINT: ${AWS_USE_PATH_STYLE_ENDPOINT:-true}
+
+  MAIL_MAILER: ${MAIL_MAILER:-log}
+  MAIL_SCHEME: ${MAIL_SCHEME:-}
+  MAIL_HOST: ${MAIL_HOST:-}
+  MAIL_PORT: ${MAIL_PORT:-587}
+  MAIL_USERNAME: ${MAIL_USERNAME:-}
+  MAIL_PASSWORD: ${MAIL_PASSWORD:-}
+  MAIL_FROM_ADDRESS: ${MAIL_FROM_ADDRESS:-infos@groupe-bama-ged.imperis.com}
+  MAIL_FROM_NAME: ${MAIL_FROM_NAME:-Groupe Bama}
+
+  SAAS_SUPER_ADMIN_EMAIL: ${SAAS_SUPER_ADMIN_EMAIL:-contact@imperis.com}
+
+x-laravel: &laravel
+  image: imperissoft/grpbama:${IMAGE_TAG:-latest}
+  restart: unless-stopped
+  environment: *laravel-env
+  volumes:
+    - grpbama_storage:/var/www/storage
+  networks:
+    - grpbama_network
+    - db_mysql_mynetwork
+
 services:
 
-  # ─────────────────────────────────────────────────────────────
-  #  APPLICATION Laravel / PHP-FPM
-  # ─────────────────────────────────────────────────────────────
+  # PHP-FPM : migrations au démarrage, puis sert l'application
   app:
-    image: imperissoft/grpbama:latest
-    restart: unless-stopped
-    user: root
-    working_dir: /var/www
-    depends_on:
-      postgres:
-        condition: service_healthy
-
-    environment:
-      - APP_NAME=Groupe Bama
-      - APP_ENV=production
-      - APP_KEY=base64:giZ9L2WKCeJlJ/MazMA3C3TCozQtL+sIgZyEZd+LeaY=
-      - APP_DEBUG=false
-      - APP_URL=https://groupe-bama-ged.imperis.com
-      - APP_LOCALE=fr
-      - APP_FALLBACK_LOCALE=fr
-      - APP_FAKER_LOCALE=fr_FR
-      - APP_MAINTENANCE_DRIVER=file
-      - BCRYPT_ROUNDS=12
-      - LOG_CHANNEL=stack
-      - LOG_DEPRECATIONS_CHANNEL=null
-      - LOG_LEVEL=error
-
-      # ✅ PostgreSQL — connexion interne Docker
-      - DB_CONNECTION=pgsql
-      - DB_HOST=postgres
-      - DB_PORT=5432
-      - DB_DATABASE=groupebama
-      - DB_USERNAME=grpbama
-      - DB_PASSWORD=dbimperis123@78
-
-      # ✅ Sessions
-      - SESSION_DRIVER=file
-      - SESSION_LIFETIME=120
-      - SESSION_ENCRYPT=false
-      - SESSION_PATH=/
-      - SESSION_DOMAIN=groupe-bama-ged.imperis.com
-      - SESSION_SECURE_COOKIE=true
-      - SESSION_SAME_SITE=lax
-
-      - BROADCAST_CONNECTION=log
-
-      # ✅ MinIO sur le QNAP TS-433 (réseau local)
-      - FILESYSTEM_DISK=minio
-      - AWS_ACCESS_KEY_ID=idADMIN
-      - AWS_SECRET_ACCESS_KEY=idADMIN78
-      - AWS_DEFAULT_REGION=us-east-1
-      - AWS_BUCKET=groupebama
-      # Remplacer <IP_QNAP> par l'IP locale du QNAP TS-433 (ex: 192.168.1.20)
-      - AWS_URL=http://<IP_QNAP>:9000
-      - AWS_ENDPOINT=http://<IP_QNAP>:9000
-      - AWS_USE_PATH_STYLE_ENDPOINT=true
-
-      # ✅ Queue et cache
-      - QUEUE_CONNECTION=sync
-      - CACHE_STORE=file
-      - CACHE_DRIVER=file
-
-      - MAIL_MAILER=log
-      - MAIL_FROM_ADDRESS=infos@groupe-bama-ged.imperis.com
-      - MAIL_FROM_NAME=Groupe Bama
-
-      - VITE_APP_NAME=Groupe Bama
-
-    volumes:
-      - storage_data:/var/www/storage
-      - cache_data:/var/www/bootstrap/cache
-      - public_assets:/var/www/public
-
-    networks:
-      - laravel_network
-
+    <<: *laravel
+    container_name: grpbama_app
     healthcheck:
-      test: ["CMD-SHELL", "php-fpm -t 2>&1 | grep -q 'test is successful' && echo ok || exit 1"]
+      test: ["CMD-SHELL", "test -f /tmp/ready && pidof php-fpm >/dev/null || exit 1"]
       interval: 30s
-      timeout: 15s
+      timeout: 10s
       retries: 5
-      start_period: 60s
+      start_period: 120s
+    deploy:
+      resources:
+        limits:
+          cpus: "1.5"
+          memory: 1G
 
-  # ─────────────────────────────────────────────────────────────
-  #  NGINX — Reverse proxy / serveur web
-  # ─────────────────────────────────────────────────────────────
+  # File d'attente : indexation / OCR / aperçus LibreOffice, exports, notifications
+  queue:
+    <<: *laravel
+    container_name: grpbama_queue
+    command: ["php", "artisan", "queue:work", "--tries=3", "--timeout=1800", "--sleep=3", "--max-time=3600"]
+    stop_grace_period: 60s
+    depends_on:
+      app:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 1536M
+
+  # Planificateur : rappels d'échéance, conservation, intégrité, corbeille
+  scheduler:
+    <<: *laravel
+    container_name: grpbama_scheduler
+    command: ["php", "artisan", "schedule:work"]
+    depends_on:
+      app:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 512M
+
+  # Nginx : conf et public/ intégrés à l'image (pas de volume partagé avec PHP)
   web:
-    image: nginx:1.25-alpine
+    image: imperissoft/grpbama-nginx:${IMAGE_TAG:-latest}
     container_name: grpbama_nginx
     restart: unless-stopped
     ports:
-      - "8786:80"
-    volumes:
-      - public_assets:/var/www/public:ro
-      - /root/grpbama/docker/nginx/app.conf:/etc/nginx/conf.d/default.conf:ro
+      - "${HOST_PORT:-8003}:80"
     depends_on:
-      - app
+      app:
+        condition: service_healthy
     networks:
-      - laravel_network
-
+      - grpbama_network
     healthcheck:
-      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost/ || exit 1"]
+      test: ["CMD-SHELL", "wget -q --spider http://127.0.0.1/up || exit 1"]
       interval: 30s
       timeout: 10s
       retries: 3
       start_period: 20s
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 128M
 
-  # ─────────────────────────────────────────────────────────────
-  #  POSTGRESQL — Base de données
-  # ─────────────────────────────────────────────────────────────
-  postgres:
-    image: postgres:16-alpine
-    container_name: grpbama_postgres
-    restart: unless-stopped
-    environment:
-      - POSTGRES_DB=groupebama
-      - POSTGRES_USER=grpbama
-      - POSTGRES_PASSWORD=dbimperis123@78
-      - PGDATA=/var/lib/postgresql/data/pgdata
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-    networks:
-      - laravel_network
-    ports:
-      # Exposé uniquement en local pour maintenance (ne pas exposer en prod publique)
-      - "127.0.0.1:5432:5432"
-
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U grpbama -d groupebama"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-      start_period: 30s
-
-# ─────────────────────────────────────────────────────────────
-#  VOLUMES
-# ─────────────────────────────────────────────────────────────
 volumes:
-  storage_data:
-  cache_data:
-  public_assets:
-  postgres_data:
-    driver: local
+  grpbama_storage:
+    name: grpbama_storage
 
-# ─────────────────────────────────────────────────────────────
-#  RÉSEAUX
-# ─────────────────────────────────────────────────────────────
 networks:
-  laravel_network:
+  grpbama_network:
+    name: grpbama_network
     driver: bridge
+  # Réseau du MySQL partagé (déjà existant sur le VPS — ne pas le recréer)
+  db_mysql_mynetwork:
+    external: true

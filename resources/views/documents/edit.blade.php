@@ -68,13 +68,8 @@
                             </div>
                             <div>
                                 <label class="block text-[9px] font-black text-slate-500 uppercase tracking-widest mb-1.5">Statut</label>
-                                <select name="status"
-                                        class="w-full bg-slate-50 border border-slate-100 rounded-xl px-4 py-3 text-sm font-medium text-slate-700 focus:outline-none focus:ring-2 focus:ring-orange-500 transition-all">
-                                    <option value="draft"     {{ old('status', $document->status) == 'draft'     ? 'selected' : '' }}>Brouillon</option>
-                                    <option value="review"    {{ old('status', $document->status) == 'review'    ? 'selected' : '' }}>En révision</option>
-                                    <option value="approved"  {{ old('status', $document->status) == 'approved'  ? 'selected' : '' }}>Approuvé</option>
-                                    <option value="archived"  {{ old('status', $document->status) == 'archived'  ? 'selected' : '' }}>Archivé</option>
-                                </select>
+                                <p class="w-full bg-slate-50 border border-slate-100 rounded-xl px-4 py-3 text-sm font-bold text-slate-700">{{ statusLabel($document->status) }}</p>
+                                <p class="text-[10px] text-slate-400 mt-1">Le statut évolue uniquement par le circuit d'approbation et de signature.</p>
                             </div>
                         </div>
 
@@ -180,10 +175,11 @@
                             </select>
                         </div>
                         <div>
-                            <label class="block text-[9px] font-black text-slate-500 uppercase tracking-widest mb-1.5">Date d'expiration</label>
+                            <label class="block text-[9px] font-black text-slate-500 uppercase tracking-widest mb-1.5">Date d'échéance</label>
                             <input type="date" name="expires_at"
                                    value="{{ old('expires_at', $document->expires_at ? \Carbon\Carbon::parse($document->expires_at)->format('Y-m-d') : '') }}"
                                    class="w-full bg-slate-50 border border-slate-100 rounded-xl px-3 py-2.5 text-xs font-medium text-slate-700 focus:outline-none focus:ring-2 focus:ring-orange-500 transition-all">
+                            <p class="text-[10px] text-slate-400 mt-1">Fin de contrat, d'assurance… : rappel 7 jours et 1 jour avant. Le document n'est jamais supprimé à cette date.</p>
                         </div>
                     </div>
                 </div>

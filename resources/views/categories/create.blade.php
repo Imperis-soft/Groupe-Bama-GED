@@ -64,14 +64,38 @@
                 </div>
 
                 <div>
-                    <label class="block text-[11px] font-black text-gray-400 uppercase tracking-widest mb-2 ml-1">Politique de rétention (années)</label>
-                    <input type="number" name="default_retention_years" min="0" max="100"
-                           value="{{ old('default_retention_years') }}"
-                           class="w-full bg-gray-50 border-2 border-gray-50 rounded-2xl px-6 py-4 text-gray-900 font-bold focus:bg-white focus:border-orange-500 focus:ring-0 transition-all placeholder:text-gray-300"
-                           placeholder="ex: 5">
-                    <p class="text-[10px] text-gray-400 mt-2 ml-1 italic">Durée de conservation par défaut pour les documents de cette catégorie. Laissez vide si non applicable.</p>
+                    <label class="block text-[11px] font-black text-gray-400 uppercase tracking-widest mb-2 ml-1">Conservation</label>
+                    <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                        <div>
+                            <input type="number" name="default_retention_years" min="0" max="100"
+                                   value="{{ old('default_retention_years') }}"
+                                   class="w-full bg-gray-50 border-2 border-gray-50 rounded-2xl px-5 py-3.5 text-gray-900 font-bold focus:bg-white focus:border-orange-500 focus:ring-0 transition-all placeholder:text-gray-300"
+                                   placeholder="Durée (années)">
+                            <p class="text-[10px] text-gray-400 mt-1 ml-1">Durée en années. Vide : celle de la catégorie parente.</p>
+                        </div>
+                        <div>
+                            <select name="retention_trigger" class="w-full bg-gray-50 border-2 border-gray-50 rounded-2xl px-4 py-3.5 text-sm text-gray-900 font-medium focus:bg-white focus:border-orange-500 focus:ring-0">
+                                @foreach(\App\Models\Category::RETENTION_TRIGGERS as $value => $label)
+                                <option value="{{ $value }}" @selected(old('retention_trigger', 'created') === $value)>{{ $label }}</option>
+                                @endforeach
+                            </select>
+                            <p class="text-[10px] text-gray-400 mt-1 ml-1">À compter de…</p>
+                        </div>
+                        <div>
+                            <select name="final_disposition" class="w-full bg-gray-50 border-2 border-gray-50 rounded-2xl px-4 py-3.5 text-sm text-gray-900 font-medium focus:bg-white focus:border-orange-500 focus:ring-0">
+                                @foreach(\App\Models\Category::FINAL_DISPOSITIONS as $value => $label)
+                                <option value="{{ $value }}" @selected(old('final_disposition', 'review') === $value)>{{ $label }}</option>
+                                @endforeach
+                            </select>
+                            <p class="text-[10px] text-gray-400 mt-1 ml-1">Ensuite… (rien n'est détruit sans validation)</p>
+                        </div>
+                    </div>
                     @error('default_retention_years') <p class="text-red-500 text-xs mt-1 ml-1">{{ $message }}</p> @enderror
                 </div>
+
+                @include('categories._workflow')
+
+                @include('categories._access')
 
                 <div class="pt-4 flex items-center justify-end gap-4">
                     <a href="{{ route('categories.index') }}" class="text-gray-400 hover:text-gray-600 font-bold text-sm transition-all">

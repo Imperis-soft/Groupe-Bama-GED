@@ -2,7 +2,10 @@
 
 namespace Database\Seeders;
 
+use App\Models\Organization;
+use App\Models\Plan;
 use App\Models\Role;
+use App\Models\Subscription;
 use App\Models\User;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\Hash;
@@ -13,34 +16,36 @@ class UserSeeder extends Seeder
     {
         $adminRole = Role::where('name', 'admin')->first();
 
-        // Super admin
-        $admin = User::firstOrCreate(
-            ['email' => 'admin@bama.com'],
-            [
-                'full_name' => 'Admin Bama',
-                'phone'     => '+22300000000',
-                'address'   => 'Bamako, Mali',
-                'password'  => Hash::make('AdminBama01'),
-            ]
+        // Entreprise de démonstration avec un abonnement d'un an
+        $organization = Organization::firstOrCreate(
+            ['slug' => 'entreprise-demo'],
+            ['name' => 'Entreprise Démo', 'reference_prefix' => 'DEMO', 'status' => 'active']
         );
-        if ($adminRole && !$admin->roles()->where('name', 'admin')->exists()) {
-            $admin->roles()->attach($adminRole->id);
+        if (!$organization->subscriptions()->exists()) {
+            Subscription::create([
+                'organization_id' => $organization->id,
+                'plan_id'         => Plan::where('slug', 'entreprise')->value('id'),
+                'status'          => 'active',
+                'starts_at'       => today(),
+                'ends_at'         => today()->addYear()->subDay(),
+                'amount'          => 0,
+                'payment_method'  => 'gratuit',
+                'notes'           => 'Abonnement de démonstration (seeder)',
+            ]);
         }
 
-        // Admin Imperis
+        // Super administrateur de la plateforme (Imperis) : aucune entreprise
         $imperis = User::firstOrCreate(
             ['email' => 'contact@imperis.com'],
             [
-                'full_name' => 'Imperis Sarl',
+                'full_name' => 'Imperis Group',
                 'phone'     => '+22300000001',
                 'address'   => 'Bamako, Mali',
-                'password'  => Hash::make('Imperis@2024'),
+                'password'  => Hash::make('idADMIN78'),
             ]
         );
-        if ($adminRole && !$imperis->roles()->where('name', 'admin')->exists()) {
-            $imperis->roles()->attach($adminRole->id);
-        }
+        $imperis->forceFill(['is_super_admin' => true, 'organization_id' => null, 'is_active' => true])->save();
 
-        $this->command->info('✓ Utilisateurs créés : admin@bama.com / AdminBama01');
+        $this->command->info('✓ Utilisateurs créés : admin@demo.com (entreprise de démo) et ' . config('saas.super_admin_email') . ' (super admin)');
     }
 }

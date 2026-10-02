@@ -80,6 +80,25 @@
                 <p class="text-[10px] text-slate-500 leading-relaxed mb-3 line-clamp-2">{{ $cat->description }}</p>
                 @endif
 
+                {{-- Accès --}}
+                @if($cat->is_public || $cat->departments->isNotEmpty())
+                <div class="flex flex-wrap gap-1.5 mb-3">
+                    @if($cat->is_public)
+                    <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-[9px] font-bold bg-green-50 text-green-600">
+                        <i class="fa-solid fa-globe text-[8px]"></i> Visible par tous
+                    </span>
+                    @endif
+                    @foreach($cat->departments->take(3) as $department)
+                    <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-[9px] font-bold {{ $department->pivot->access_level === 'edit' ? 'bg-orange-50 text-orange-600' : 'bg-slate-50 text-slate-500' }}">
+                        <i class="fa-solid fa-sitemap text-[8px]"></i> {{ $department->name }}
+                    </span>
+                    @endforeach
+                    @if($cat->departments->count() > 3)
+                    <span class="px-2 py-0.5 rounded-lg text-[9px] font-bold bg-slate-50 text-slate-400">+{{ $cat->departments->count() - 3 }}</span>
+                    @endif
+                </div>
+                @endif
+
                 {{-- Stats --}}
                 <div class="flex items-center justify-between pt-3 border-t border-slate-50">
                     <div class="flex items-center gap-3">
@@ -263,6 +282,10 @@
                         class="w-full bg-slate-50 border border-slate-100 rounded-xl px-4 py-2.5 text-sm font-medium text-slate-700 focus:outline-none focus:ring-2 focus:ring-orange-500 transition-all resize-none"
                         x-text="editData.description"></textarea>
                 </div>
+                <a :href="'/categories/' + editData.id + '/edit'"
+                   class="flex items-center gap-2 text-[11px] font-bold text-orange-600 hover:underline">
+                    <i class="fa-solid fa-user-lock text-[10px]"></i> Gérer les accès par service et la rétention
+                </a>
                 <div class="flex gap-3 pt-1">
                     <button type="button" @click="editOpen = false"
                         class="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-600 py-2.5 rounded-xl font-bold text-xs uppercase tracking-wider transition-all">

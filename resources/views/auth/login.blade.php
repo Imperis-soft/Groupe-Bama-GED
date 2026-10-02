@@ -3,305 +3,260 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Connexion — Groupe Bama GED</title>
+    <title>Connexion — {{ config('saas.platform_name') }}</title>
+    <x-favicons />
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet">
     <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['"Plus Jakarta Sans"', 'ui-sans-serif', 'system-ui', '-apple-system', 'sans-serif'],
+                        mono: ['"JetBrains Mono"', 'ui-monospace', 'monospace'],
+                    },
+                    colors: { ink: '#0b1220' },
+                    boxShadow: {
+                        soft: '0 1px 2px rgba(15,23,42,.04), 0 2px 6px -2px rgba(15,23,42,.04)',
+                        pop:  '0 24px 48px -12px rgba(15,23,42,.18), 0 4px 10px -4px rgba(15,23,42,.06)',
+                        cta:  '0 8px 20px -6px rgba(234,88,12,.45)',
+                    },
+                },
+            },
+        };
+    </script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
-    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700;800;900&display=swap" rel="stylesheet">
     <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
-    <style>
-        * { font-family: 'Plus Jakarta Sans', -apple-system, sans-serif; }
-        @keyframes fadeUp { from{opacity:0;transform:translateY(20px)} to{opacity:1;transform:translateY(0)} }
-        @keyframes slideIn { from{opacity:0;transform:translateX(-20px)} to{opacity:1;transform:translateX(0)} }
-        @keyframes pulse-ring { 0%{transform:scale(1);opacity:.6} 100%{transform:scale(1.5);opacity:0} }
-        @keyframes float { 0%,100%{transform:translateY(0) rotate(6deg)} 50%{transform:translateY(-8px) rotate(6deg)} }
-        @keyframes shimmer { 0%{background-position:-200% 0} 100%{background-position:200% 0} }
-        .fade-up { animation: fadeUp .55s cubic-bezier(.22,1,.36,1) forwards; }
-        .slide-in { animation: slideIn .6s cubic-bezier(.22,1,.36,1) forwards; }
-        .d1{animation-delay:.05s;opacity:0} .d2{animation-delay:.12s;opacity:0}
-        .d3{animation-delay:.19s;opacity:0} .d4{animation-delay:.26s;opacity:0}
-        .d5{animation-delay:.33s;opacity:0} .d6{animation-delay:.40s;opacity:0}
-        .logo-float { animation: float 4s ease-in-out infinite; }
-        .pulse-ring::before {
-            content:''; position:absolute; inset:-6px; border-radius:inherit;
-            border:2px solid rgba(255,255,255,.3);
-            animation: pulse-ring 2s ease-out infinite;
+    <style type="text/tailwindcss">
+        [x-cloak] { display: none !important; }
+        .dots      { background-image: radial-gradient(circle at 1px 1px, rgba(15,23,42,.08) 1px, transparent 0); background-size: 26px 26px; }
+        .dots-dark { background-image: radial-gradient(circle at 1px 1px, rgba(255,255,255,.07) 1px, transparent 0); background-size: 22px 22px; }
+        .accent    { background: linear-gradient(120deg, #ea580c 0%, #f97316 55%, #fb923c 100%); -webkit-background-clip: text; background-clip: text; color: transparent; }
+        .fade-b    { mask-image: linear-gradient(to bottom, #000 20%, transparent); -webkit-mask-image: linear-gradient(to bottom, #000 20%, transparent); }
+
+        @keyframes rise  { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: none; } }
+        @keyframes float { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-8px); } }
+        .rise  { opacity: 0; animation: rise .6s cubic-bezier(.22,1,.36,1) forwards; }
+        .float { animation: float 6s ease-in-out infinite; }
+        @media (prefers-reduced-motion: reduce) { .rise { animation: none; opacity: 1; } .float { animation: none; } }
+
+        @layer components {
+            .label { @apply block text-[13px] font-semibold text-slate-700 mb-2; }
+            .field { @apply block w-full h-12 rounded-xl border border-slate-200 bg-white pl-11 pr-4 text-[15px] text-slate-900 placeholder:text-slate-400 transition hover:border-slate-300 focus:outline-none focus:border-orange-400 focus:ring-4 focus:ring-orange-500/10; }
+            .field-icon { @apply absolute left-4 top-1/2 -translate-y-1/2 text-[13px] text-slate-400 pointer-events-none transition; }
+            .btn { @apply inline-flex items-center justify-center gap-2 h-12 px-5 rounded-xl text-[15px] font-bold whitespace-nowrap transition focus:outline-none focus-visible:ring-4; }
+            .btn-primary { @apply bg-orange-600 text-white shadow-cta hover:bg-orange-700 hover:-translate-y-px focus-visible:ring-orange-500/25 disabled:opacity-70 disabled:hover:translate-y-0 disabled:cursor-wait; }
         }
-        .input-field {
-            width:100%; background:#f8fafc; border:1.5px solid #e2e8f0;
-            border-radius:14px; padding:13px 16px 13px 44px;
-            font-size:14px; font-weight:600; color:#1e293b;
-            transition: all .2s ease; outline:none;
-        }
-        .input-field::placeholder { color:#94a3b8; font-weight:500; }
-        .input-field:focus { background:#fff; border-color:#f97316; box-shadow:0 0 0 4px rgba(249,115,22,.1); }
-        .input-field.error { background:#fff5f5; border-color:#fca5a5; }
-        .btn-primary {
-            width:100%; background:linear-gradient(135deg,#ea580c,#f97316);
-            color:#fff; padding:14px; border-radius:14px;
-            font-size:13px; font-weight:900; letter-spacing:.08em; text-transform:uppercase;
-            border:none; cursor:pointer; transition:all .2s ease;
-            box-shadow:0 8px 24px -4px rgba(234,88,12,.45);
-            display:flex; align-items:center; justify-content:center; gap:10px;
-        }
-        .btn-primary:hover { transform:translateY(-1px); box-shadow:0 12px 32px -4px rgba(234,88,12,.55); }
-        .btn-primary:active { transform:scale(.98); }
-        .btn-primary:disabled { opacity:.7; cursor:not-allowed; transform:none; }
-        .left-panel {
-            background: linear-gradient(145deg, #c2410c 0%, #ea580c 40%, #f97316 100%);
-        }
-        .grid-svg { opacity:.08; }
-        .feature-item { transition: transform .2s ease; }
-        .feature-item:hover { transform: translateX(4px); }
-        .divider { display:flex; align-items:center; gap:12px; }
-        .divider::before,.divider::after { content:''; flex:1; height:1px; background:#e2e8f0; }
-        .strength-bar { height:3px; border-radius:99px; transition:all .3s ease; }
     </style>
 </head>
-<body class="h-full bg-white antialiased overflow-x-hidden">
+<body class="min-h-full bg-white font-sans text-slate-700 antialiased">
 
-<div class="flex min-h-screen">
+<div class="min-h-screen grid lg:grid-cols-[minmax(0,1fr)_minmax(0,1.05fr)]">
 
-    {{-- ===== PANNEAU GAUCHE — BRANDING ===== --}}
-    <div class="hidden lg:flex lg:w-[52%] xl:w-[55%] left-panel relative flex-col justify-between p-12 xl:p-16 overflow-hidden">
+    {{-- ===================== FORMULAIRE ===================== --}}
+    <div class="relative flex flex-col overflow-hidden">
+        <div class="absolute inset-x-0 top-0 h-80 dots fade-b pointer-events-none"></div>
+        <div class="absolute -top-40 -left-24 w-[420px] h-[320px] rounded-full bg-orange-400/15 blur-3xl pointer-events-none"></div>
 
-        {{-- Grille SVG --}}
-        <svg class="grid-svg absolute inset-0 w-full h-full" xmlns="http://www.w3.org/2000/svg">
-            <defs>
-                <pattern id="g" width="48" height="48" patternUnits="userSpaceOnUse">
-                    <path d="M 48 0 L 0 0 0 48" fill="none" stroke="white" stroke-width="1"/>
-                </pattern>
-            </defs>
-            <rect width="100%" height="100%" fill="url(#g)"/>
-        </svg>
-
-        {{-- Blobs décoratifs --}}
-        <div class="absolute -top-32 -left-32 w-96 h-96 bg-white/10 rounded-full blur-3xl pointer-events-none"></div>
-        <div class="absolute -bottom-32 -right-32 w-[500px] h-[500px] bg-orange-900/20 rounded-full blur-3xl pointer-events-none"></div>
-        <div class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-64 h-64 bg-white/5 rounded-full blur-2xl pointer-events-none"></div>
+        {{-- Barre du haut : logo + retour au site --}}
+        <header class="relative flex items-center justify-between gap-4 px-6 sm:px-10 h-20">
+            <a href="{{ url('/') }}" class="flex items-center gap-3 group">
+                <x-logo class="w-11 h-11 transition group-hover:-rotate-6" />
+                <span class="leading-none">
+                    <span class="block text-[17px] font-extrabold tracking-tight text-slate-900">{{ config('saas.platform_name') }}</span>
+                    <span class="block text-[11px] font-medium text-slate-500 mt-1">par {{ config('saas.vendor_name') }}</span>
+                </span>
+            </a>
+            <a href="{{ url('/') }}" class="inline-flex items-center gap-2 h-10 px-4 rounded-full border border-slate-200 bg-white/80 backdrop-blur text-[13px] font-semibold text-slate-600 hover:text-orange-600 hover:border-orange-200 transition">
+                <i class="fa-solid fa-arrow-left text-[11px]"></i>
+                <span>Retour au site</span>
+            </a>
+        </header>
 
         {{-- Contenu --}}
-        <div class="relative z-10">
-            {{-- Logo --}}
-            <div class="flex items-center gap-3 mb-16">
-                <div class="w-10 h-10 bg-white/20 backdrop-blur rounded-xl flex items-center justify-center border border-white/30">
-                    <i class="fa-solid fa-file-shield text-white text-base"></i>
-                </div>
-                <div>
-                    <p class="text-white font-black text-sm leading-none tracking-tight">Groupe Bama</p>
-                    <p class="text-orange-200 text-[9px] font-bold uppercase tracking-widest mt-0.5">GED Platform</p>
-                </div>
-            </div>
+        <main class="relative flex-1 flex items-center justify-center px-6 sm:px-10 py-10">
+            <div class="w-full max-w-[400px]">
 
-            {{-- Icône principale --}}
-            <div class="relative inline-block mb-10">
-                <div class="pulse-ring relative w-20 h-20 bg-white rounded-[1.75rem] flex items-center justify-center shadow-2xl shadow-orange-900/30 logo-float">
-                    <i class="fa-solid fa-file-shield text-orange-600 text-4xl"></i>
-                </div>
-            </div>
-
-            <h1 class="text-4xl xl:text-5xl font-black text-white leading-[1.05] tracking-tight mb-5">
-                Votre archive<br>documentaire<br><span class="text-orange-200">sécurisée</span>
-            </h1>
-
-            <p class="text-orange-100/80 text-sm font-medium leading-relaxed max-w-sm mb-10">
-                Gérez, approuvez, signez et partagez tous vos documents d'entreprise depuis une plateforme unique, traçable et conforme.
-            </p>
-
-            {{-- Features --}}
-            <div class="space-y-3">
-                @foreach([
-                    ['fa-shield-halved',      'Contrôle d\'accès par rôle (RBAC + ACL)'],
-                    ['fa-list-check',         'Workflows d\'approbation multi-étapes'],
-                    ['fa-signature',          'Signatures numériques vérifiables'],
-                    ['fa-clock-rotate-left',  'Journal d\'audit complet de chaque action'],
-                    ['fa-qrcode',             'QR code d\'authenticité sur chaque document'],
-                ] as [$icon, $text])
-                <div class="feature-item flex items-center gap-3">
-                    <div class="w-8 h-8 rounded-xl bg-white/15 border border-white/20 flex items-center justify-center shrink-0">
-                        <i class="fa-solid {{ $icon }} text-white text-[11px]"></i>
-                    </div>
-                    <p class="text-sm text-orange-50/90 font-medium">{{ $text }}</p>
-                </div>
-                @endforeach
-            </div>
-        </div>
-
-        {{-- Footer branding --}}
-        <div class="relative z-10 flex items-center justify-between">
-            <p class="text-white/30 text-[9px] font-black tracking-[0.25em] uppercase">
-                © {{ date('Y') }} Groupe Bama
-            </p>
-            <div class="flex items-center gap-2 bg-white/10 border border-white/20 rounded-xl px-3 py-1.5">
-                <div class="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse"></div>
-                <span class="text-white/70 text-[9px] font-bold uppercase tracking-wider">Système opérationnel</span>
-            </div>
-        </div>
-    </div>
-
-    {{-- ===== PANNEAU DROIT — FORMULAIRE ===== --}}
-    <div class="w-full lg:w-[48%] xl:w-[45%] flex items-center justify-center px-6 py-12 sm:px-10 lg:px-12 xl:px-16 bg-white">
-        <div class="w-full max-w-[380px]">
-
-            {{-- Logo mobile --}}
-            <div class="lg:hidden flex items-center gap-3 mb-10 fade-up d1">
-                <div class="w-10 h-10 rounded-xl bg-orange-600 flex items-center justify-center shadow-lg shadow-orange-200">
-                    <i class="fa-solid fa-file-shield text-white text-sm"></i>
-                </div>
-                <div>
-                    <p class="text-sm font-black text-slate-900 leading-none">Groupe Bama</p>
-                    <p class="text-[9px] font-bold text-slate-400 uppercase tracking-widest mt-0.5">GED Platform</p>
-                </div>
-            </div>
-
-            {{-- Titre --}}
-            <div class="mb-8 fade-up d1">
-                <p class="text-[10px] font-black text-orange-600 uppercase tracking-[0.3em] mb-2">Bienvenue</p>
-                <h2 class="text-3xl font-black text-slate-900 tracking-tight leading-none">Connexion</h2>
-                <p class="text-sm text-slate-400 font-medium mt-2.5 leading-relaxed">
-                    Entrez vos identifiants pour accéder à votre espace documentaire.
-                </p>
-            </div>
-
-            {{-- Alerte erreur --}}
-            @if($errors->any())
-            <div class="mb-6 fade-up d1 flex items-start gap-3 bg-red-50 border border-red-100 rounded-2xl px-4 py-3.5">
-                <div class="w-7 h-7 rounded-lg bg-red-100 flex items-center justify-center shrink-0 mt-0.5">
-                    <i class="fa-solid fa-triangle-exclamation text-red-500 text-xs"></i>
-                </div>
-                <div>
-                    @foreach($errors->all() as $error)
-                    <p class="text-xs font-bold text-red-700 leading-relaxed">{{ $error }}</p>
-                    @endforeach
-                </div>
-            </div>
-            @endif
-
-            {{-- Alerte succès (reset password) --}}
-            @if(session('success'))
-            <div class="mb-6 fade-up d1 flex items-start gap-3 bg-green-50 border border-green-100 rounded-2xl px-4 py-3.5">
-                <div class="w-7 h-7 rounded-lg bg-green-100 flex items-center justify-center shrink-0 mt-0.5">
-                    <i class="fa-solid fa-check text-green-600 text-xs"></i>
-                </div>
-                <p class="text-xs font-bold text-green-700 leading-relaxed">{{ session('success') }}</p>
-            </div>
-            @endif
-
-            {{-- Formulaire --}}
-            <form action="{{ route('login') }}" method="POST" class="space-y-5"
-                  x-data="{ loading: false }" @submit="loading = true">
-                @csrf
-
-                {{-- Email --}}
-                <div class="fade-up d2">
-                    <label class="block text-[9px] font-black text-slate-500 uppercase tracking-widest mb-1.5">
-                        Adresse email
-                    </label>
-                    <div class="relative">
-                        <i class="fa-solid fa-envelope absolute left-4 top-1/2 -translate-y-1/2 text-slate-300 text-xs pointer-events-none"></i>
-                        <input type="email" name="email" value="{{ old('email') }}" required autofocus
-                               placeholder="nom@groupebama.com"
-                               class="input-field {{ $errors->has('email') ? 'error' : '' }}">
-                    </div>
-                    @error('email')
-                    <p class="text-red-500 text-[9px] font-bold mt-1.5 flex items-center gap-1">
-                        <i class="fa-solid fa-circle-exclamation text-[8px]"></i>{{ $message }}
+                <div class="rise" style="animation-delay:.05s">
+                    <p class="inline-flex items-center gap-2 text-[13px] font-semibold text-orange-600">
+                        <span class="w-1.5 h-1.5 rounded-full bg-orange-500"></span> Espace client
                     </p>
-                    @enderror
+                    <h1 class="mt-3 text-[34px] sm:text-[38px] leading-[1.08] font-extrabold tracking-[-0.03em] text-slate-900">
+                        Content de vous <span class="accent">revoir.</span>
+                    </h1>
+                    <p class="mt-3 text-[15px] text-slate-500 leading-relaxed">
+                        Connectez-vous pour retrouver vos documents, vos validations et vos signatures.
+                    </p>
                 </div>
 
-                {{-- Mot de passe --}}
-                <div class="fade-up d3" x-data="{ show: false }">
-                    <div class="flex items-center justify-between mb-1.5">
-                        <label class="block text-[9px] font-black text-slate-500 uppercase tracking-widest">
-                            Mot de passe
-                        </label>
-                        <a href="{{ route('password.forgot') }}"
-                           class="text-[10px] font-bold text-orange-600 hover:text-orange-700 transition-colors hover:underline">
-                            Oublié ?
-                        </a>
+                {{-- Messages --}}
+                @if($errors->any())
+                    <div class="rise mt-7 flex items-start gap-3 rounded-2xl border border-red-200 bg-red-50/70 px-4 py-3.5" style="animation-delay:.1s" role="alert">
+                        <i class="fa-solid fa-circle-exclamation text-red-500 mt-0.5"></i>
+                        <div class="text-sm text-red-700 space-y-0.5">
+                            @foreach($errors->all() as $error)<p>{{ $error }}</p>@endforeach
+                        </div>
                     </div>
-                    <div class="relative">
-                        <i class="fa-solid fa-lock absolute left-4 top-1/2 -translate-y-1/2 text-slate-300 text-xs pointer-events-none"></i>
-                        <input :type="show ? 'text' : 'password'" name="password" required
-                               placeholder="••••••••"
-                               class="input-field pr-12">
-                        <button type="button" @click="show = !show"
-                            class="absolute right-4 top-1/2 -translate-y-1/2 text-slate-300 hover:text-slate-600 transition-colors p-1">
-                            <i class="fa-solid text-xs" :class="show ? 'fa-eye-slash' : 'fa-eye'"></i>
+                @endif
+
+                @if(session('success'))
+                    <div class="rise mt-7 flex items-start gap-3 rounded-2xl border border-emerald-200 bg-emerald-50/70 px-4 py-3.5" style="animation-delay:.1s" role="status">
+                        <i class="fa-solid fa-circle-check text-emerald-500 mt-0.5"></i>
+                        <p class="text-sm text-emerald-800">{{ session('success') }}</p>
+                    </div>
+                @endif
+
+                <form action="{{ route('login') }}" method="POST" class="mt-8 space-y-5"
+                      x-data="{ loading: false }" @submit="loading = true">
+                    @csrf
+
+                    <div class="rise" style="animation-delay:.12s">
+                        <label for="email" class="label">Adresse email</label>
+                        <div class="relative group">
+                            <input id="email" type="email" name="email" value="{{ old('email') }}" required autofocus autocomplete="username"
+                                   placeholder="nom@entreprise.com"
+                                   class="field peer {{ $errors->has('email') ? '!border-red-300 !bg-red-50/40' : '' }}">
+                            <i class="fa-regular fa-envelope field-icon peer-focus:text-orange-500"></i>
+                        </div>
+                    </div>
+
+                    <div class="rise" style="animation-delay:.18s" x-data="{ show: false }">
+                        <div class="flex items-center justify-between mb-2">
+                            <label for="password" class="label !mb-0">Mot de passe</label>
+                            <a href="{{ route('password.forgot') }}" class="text-[13px] font-semibold text-orange-600 hover:text-orange-700 transition">Mot de passe oublié ?</a>
+                        </div>
+                        <div class="relative">
+                            <input id="password" :type="show ? 'text' : 'password'" name="password" required autocomplete="current-password"
+                                   placeholder="Votre mot de passe" class="field peer !pr-12">
+                            <i class="fa-solid fa-lock field-icon peer-focus:text-orange-500"></i>
+                            <button type="button" @click="show = !show"
+                                    class="absolute right-2 top-1/2 -translate-y-1/2 w-9 h-9 rounded-lg flex items-center justify-center text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition"
+                                    :aria-label="show ? 'Masquer le mot de passe' : 'Afficher le mot de passe'">
+                                <i class="fa-regular text-[13px]" :class="show ? 'fa-eye-slash' : 'fa-eye'"></i>
+                            </button>
+                        </div>
+                    </div>
+
+                    <label class="rise flex items-center gap-3 cursor-pointer select-none w-fit" style="animation-delay:.24s">
+                        <input type="checkbox" name="remember" class="sr-only peer" @checked(old('remember'))>
+                        <span class="relative w-10 h-6 rounded-full bg-slate-200 transition peer-checked:bg-orange-600 peer-focus-visible:ring-4 peer-focus-visible:ring-orange-500/20
+                                     after:absolute after:top-0.5 after:left-0.5 after:w-5 after:h-5 after:rounded-full after:bg-white after:shadow after:transition peer-checked:after:translate-x-4"></span>
+                        <span class="text-sm font-medium text-slate-600">Rester connecté</span>
+                    </label>
+
+                    <div class="rise pt-1" style="animation-delay:.3s">
+                        <button type="submit" class="btn btn-primary w-full" :disabled="loading">
+                            <span x-show="!loading" class="inline-flex items-center gap-2">Se connecter <i class="fa-solid fa-arrow-right text-[13px]"></i></span>
+                            <span x-show="loading" x-cloak class="inline-flex items-center gap-2"><i class="fa-solid fa-circle-notch fa-spin text-[13px]"></i> Connexion…</span>
                         </button>
                     </div>
-                </div>
+                </form>
 
-                {{-- Se souvenir --}}
-                <div class="fade-up d4 flex items-center justify-between">
-                    <label class="flex items-center gap-2.5 cursor-pointer group">
-                        <div class="relative">
-                            <input type="checkbox" name="remember" id="remember"
-                                   class="sr-only peer" {{ old('remember') ? 'checked' : '' }}>
-                            <div class="w-9 h-5 bg-slate-200 peer-checked:bg-orange-600 rounded-full transition-colors duration-200 peer-focus:ring-2 peer-focus:ring-orange-500/30"></div>
-                            <div class="absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform duration-200 peer-checked:translate-x-4"></div>
-                        </div>
-                        <span class="text-xs font-semibold text-slate-500 group-hover:text-slate-700 transition-colors select-none">
-                            Rester connecté
-                        </span>
-                    </label>
-                </div>
-
-                {{-- Bouton submit --}}
-                <div class="fade-up d5">
-                    <button type="submit" class="btn-primary" :disabled="loading">
-                        <span x-show="!loading">
-                            <i class="fa-solid fa-arrow-right-to-bracket text-[11px]"></i>
-                            Se connecter
-                        </span>
-                        <span x-show="loading" class="flex items-center gap-2">
-                            <i class="fa-solid fa-spinner fa-spin text-[11px]"></i>
-                            Connexion en cours...
-                        </span>
-                    </button>
-                </div>
-
-            </form>
-
-            {{-- Séparateur --}}
-            <div class="fade-up d5 my-7">
-                <div class="divider">
-                    <span class="text-[9px] font-black text-slate-300 uppercase tracking-widest whitespace-nowrap">Accès sécurisé</span>
+                <div class="rise mt-8 rounded-2xl border border-slate-200/70 bg-slate-50/60 px-5 py-4 flex items-center gap-4" style="animation-delay:.36s">
+                    <span class="w-10 h-10 rounded-xl bg-white ring-1 ring-slate-200/70 shadow-soft flex items-center justify-center shrink-0">
+                        <i class="fa-solid fa-building text-orange-600 text-sm"></i>
+                    </span>
+                    <p class="text-sm text-slate-600 leading-snug">
+                        Pas encore client ?
+                        <a href="{{ url('/') }}#contact" class="font-semibold text-orange-600 hover:text-orange-700">Demander une démo</a>
+                    </p>
                 </div>
             </div>
+        </main>
 
-            {{-- Badges sécurité --}}
-            <div class="fade-up d6 grid grid-cols-3 gap-2 mb-7">
-                <div class="flex flex-col items-center gap-1.5 bg-slate-50 rounded-xl p-3 border border-slate-100">
-                    <i class="fa-solid fa-shield-halved text-green-500 text-base"></i>
-                    <span class="text-[8px] font-black text-slate-400 uppercase tracking-wider text-center leading-tight">HTTPS<br>Chiffré</span>
-                </div>
-                <div class="flex flex-col items-center gap-1.5 bg-slate-50 rounded-xl p-3 border border-slate-100">
-                    <i class="fa-solid fa-clock text-blue-500 text-base"></i>
-                    <span class="text-[8px] font-black text-slate-400 uppercase tracking-wider text-center leading-tight">Session<br>Sécurisée</span>
-                </div>
-                <div class="flex flex-col items-center gap-1.5 bg-slate-50 rounded-xl p-3 border border-slate-100">
-                    <i class="fa-solid fa-fingerprint text-orange-500 text-base"></i>
-                    <span class="text-[8px] font-black text-slate-400 uppercase tracking-wider text-center leading-tight">Audit<br>Complet</span>
-                </div>
-            </div>
-
-            {{-- Aide --}}
-            <div class="fade-up d6 text-center">
-                <p class="text-[10px] text-slate-400 font-medium">
-                    Problème de connexion ?
-                    <a href="mailto:contact@imperis.com" class="text-orange-600 font-bold hover:underline ml-1">
-                        Contacter le support
-                    </a>
-                </p>
-                <p class="text-[9px] text-slate-300 mt-2 font-medium">
-                    Développé par <span class="text-slate-400 font-bold">Imperis Sarl</span> · Bamako {{ date('Y') }}
-                </p>
-            </div>
-
-        </div>
+        <footer class="relative px-6 sm:px-10 pb-6 flex flex-wrap items-center justify-between gap-3 text-xs text-slate-400">
+            <p>© {{ date('Y') }} {{ config('saas.vendor_name') }}</p>
+            <a href="mailto:{{ config('saas.support_email') }}" class="hover:text-orange-600 transition">
+                <i class="fa-regular fa-life-ring mr-1"></i> Besoin d'aide ? {{ config('saas.support_email') }}
+            </a>
+        </footer>
     </div>
 
+    {{-- ===================== PANNEAU VISUEL ===================== --}}
+    <aside class="hidden lg:block p-3 lg:sticky lg:top-0 lg:h-screen">
+        <div class="relative h-full overflow-hidden rounded-[28px] bg-ink text-white">
+            <div class="absolute inset-0 dots-dark"></div>
+            <div class="absolute -top-32 -right-24 w-[520px] h-[420px] rounded-full bg-orange-500/30 blur-3xl"></div>
+            <div class="absolute -bottom-40 -left-20 w-[420px] h-[360px] rounded-full bg-orange-600/20 blur-3xl"></div>
+
+            <div class="relative h-full flex flex-col justify-between p-12 xl:p-14">
+                <div class="inline-flex items-center gap-2 self-start rounded-full border border-white/10 bg-white/5 px-3.5 py-1.5 text-[12px] font-semibold text-slate-300 backdrop-blur">
+                    <span class="relative flex w-2 h-2"><span class="absolute inline-flex w-full h-full rounded-full bg-emerald-400 opacity-60 animate-ping"></span><span class="relative w-2 h-2 rounded-full bg-emerald-400"></span></span>
+                    Tous les services sont opérationnels
+                </div>
+
+                {{-- Maquette produit --}}
+                <div class="relative mx-auto w-full max-w-[460px] my-10 [@media(max-height:780px)]:scale-90 [@media(max-height:780px)]:my-4">
+                    <div class="float rounded-2xl bg-white text-slate-700 shadow-pop ring-1 ring-white/10 overflow-hidden">
+                        <div class="flex items-center gap-1.5 px-4 h-10 border-b border-slate-100">
+                            <span class="w-2.5 h-2.5 rounded-full bg-red-300"></span>
+                            <span class="w-2.5 h-2.5 rounded-full bg-amber-300"></span>
+                            <span class="w-2.5 h-2.5 rounded-full bg-emerald-300"></span>
+                            <span class="ml-3 text-[11px] text-slate-400"><i class="fa-solid fa-lock text-[9px] text-emerald-500 mr-1"></i>{{ strtolower(config('saas.platform_name')) }} · Documents</span>
+                        </div>
+                        <div class="p-4 space-y-1">
+                            @foreach([
+                                ['fa-file-word text-sky-500', 'Contrat cadre fournisseur', 'ACME-7K2Q9D · v3', 'Approuvé', 'bg-emerald-50 text-emerald-700'],
+                                ['fa-file-pdf text-red-500', 'Procès-verbal du conseil', 'ACME-P4M1XZ · v2', 'En révision', 'bg-amber-50 text-amber-700'],
+                                ['fa-file-excel text-emerald-600', 'Rapport financier T3', 'ACME-F2N7WC · v5', 'Archivé', 'bg-violet-50 text-violet-700'],
+                            ] as [$icon, $title, $ref, $status, $badge])
+                                <div class="flex items-center gap-3 rounded-xl px-3 py-2.5 {{ $loop->first ? 'bg-orange-50/60' : '' }}">
+                                    <span class="w-9 h-9 rounded-lg bg-white ring-1 ring-slate-100 shadow-soft flex items-center justify-center"><i class="fa-solid {{ $icon }} text-sm"></i></span>
+                                    <div class="min-w-0 flex-1">
+                                        <p class="text-[13px] font-bold text-slate-900 truncate">{{ $title }}</p>
+                                        <p class="text-[10px] font-mono text-slate-400">{{ $ref }}</p>
+                                    </div>
+                                    <span class="rounded-full px-2 py-1 text-[10px] font-bold {{ $badge }}">{{ $status }}</span>
+                                </div>
+                            @endforeach
+                        </div>
+                    </div>
+
+                    {{-- Badge « authentique » --}}
+                    <div class="absolute -top-6 -right-6 xl:-right-10 flex items-center gap-3 rounded-2xl bg-ink/90 backdrop-blur px-4 py-3 ring-1 ring-white/10 shadow-pop">
+                        <span class="w-9 h-9 rounded-lg bg-white flex items-center justify-center"><i class="fa-solid fa-qrcode text-ink"></i></span>
+                        <div>
+                            <p class="text-[12px] font-bold">Document authentique</p>
+                            <p class="text-[11px] text-emerald-400"><i class="fa-solid fa-shield-halved mr-1"></i>Empreinte vérifiée</p>
+                        </div>
+                    </div>
+
+                    {{-- Carte workflow --}}
+                    <div class="absolute -bottom-10 -left-6 xl:-left-10 w-60 rounded-2xl bg-white text-slate-700 p-4 shadow-pop ring-1 ring-slate-900/5">
+                        <div class="flex items-center justify-between text-[10px] font-semibold uppercase tracking-[0.1em] text-slate-400">
+                            <span>Workflow</span><span class="font-mono">2/3</span>
+                        </div>
+                        <div class="mt-2 h-1.5 rounded-full bg-slate-100 overflow-hidden"><span class="block h-full w-2/3 rounded-full bg-gradient-to-r from-emerald-400 to-emerald-500"></span></div>
+                        <ul class="mt-3 space-y-2 text-[12px] font-medium">
+                            <li class="flex items-center gap-2"><i class="fa-solid fa-circle-check text-emerald-500"></i> Direction juridique</li>
+                            <li class="flex items-center gap-2"><i class="fa-solid fa-circle-check text-emerald-500"></i> Direction financière</li>
+                            <li class="flex items-center gap-2"><i class="fa-solid fa-hourglass-half text-amber-500"></i> Direction générale</li>
+                        </ul>
+                    </div>
+                </div>
+
+                <div class="mt-6">
+                    <h2 class="text-[30px] xl:text-[34px] leading-[1.1] font-extrabold tracking-[-0.03em]">
+                        Chaque document,<br><span class="text-orange-400">maîtrisé de bout en bout.</span>
+                    </h2>
+                    <div class="mt-6 grid grid-cols-3 gap-3 max-w-[520px] [@media(max-height:780px)]:hidden">
+                        @foreach([
+                            ['fa-code-branch', 'Versions conservées'],
+                            ['fa-signature', 'Signature et QR code'],
+                            ['fa-clock-rotate-left', 'Traçabilité complète'],
+                        ] as [$icon, $text])
+                            <div class="rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3.5">
+                                <i class="fa-solid {{ $icon }} text-orange-400 text-sm"></i>
+                                <p class="mt-2 text-[13px] font-semibold text-slate-200 leading-snug">{{ $text }}</p>
+                            </div>
+                        @endforeach
+                    </div>
+                </div>
+            </div>
+        </div>
+    </aside>
 </div>
 
 </body>

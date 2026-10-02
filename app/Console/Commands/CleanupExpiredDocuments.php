@@ -2,47 +2,29 @@
 
 namespace App\Console\Commands;
 
+use App\Models\Document;
 use Illuminate\Console\Command;
 
+/**
+ * Liste les documents dont la date d'échéance est dépassée.
+ * Ne supprime RIEN : une échéance (fin de contrat, d'assurance…) n'est pas une fin de conservation.
+ * Commande conservée pour compatibilité ; elle n'est plus planifiée.
+ */
 class CleanupExpiredDocuments extends Command
 {
-    /**
-     * The name and signature of the console command.
-     *
-     * @var string
-     */
-    protected $signature = 'documents:cleanup-expired {--dry-run : Afficher seulement ce qui serait supprimé}';
+    protected $signature = 'documents:cleanup-expired {--dry-run : Conservé pour compatibilité (la commande ne supprime jamais rien)}';
 
-    /**
-     * The console command description.
-     *
-     * @var string
-     */
-    protected $description = 'Nettoyer les documents expirés selon leur politique de rétention';
+    protected $description = 'Liste les documents dont l\'échéance est dépassée (aucune suppression)';
 
-    /**
-     * Execute the console command.
-     */
-    public function handle()
+    public function handle(): int
     {
-        $service = app(\App\Services\DocumentArchivalService::class);
-        $isDryRun = $this->option('dry-run');
+        $documents = Document::withoutGlobalScope('organization')->expired()->with('organization')->orderBy('expires_at')->get();
 
-        if ($isDryRun) {
-            $expiredCount = \App\Models\Document::expired()->count();
-            $this->info("Documents expirés trouvés: {$expiredCount}");
-
-            \App\Models\Document::expired()->take(10)->get()->each(function ($doc) {
-                $this->line("- {$doc->title} (expire le {$doc->expires_at->format('d/m/Y')})");
-            });
-
-            return;
+        $this->info("{$documents->count()} document(s) dont l'échéance est dépassée. Aucun n'est supprimé.");
+        foreach ($documents->take(50) as $document) {
+            $this->line("- [{$document->organization?->name}] {$document->reference} · {$document->title} (échéance : {$document->expires_at->format('d/m/Y')})");
         }
 
-        $this->info('Début du nettoyage des documents expirés...');
-
-        $deletedCount = $service->cleanupExpiredDocuments();
-
-        $this->info("Nettoyage terminé. {$deletedCount} documents supprimés.");
+        return self::SUCCESS;
     }
 }

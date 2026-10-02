@@ -4,7 +4,6 @@ namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Storage;
 use App\Models\Document;
 use App\Models\Category;
 use App\Models\User;
@@ -33,18 +32,6 @@ class DashboardController extends Controller
         $draftCount        = $baseQuery()->where('status', 'draft')->count();
         $reviewCount       = $baseQuery()->where('status', 'review')->count();
 
-        // Storage usage
-        $storageUsed = 0;
-        try {
-            if (DB::getDriverName() === 'pgsql') {
-                $storageUsed = $baseQuery()->sum(DB::raw("COALESCE((metadata->>'size')::bigint, 0)"));
-            } else {
-                $storageUsed = $baseQuery()->sum(DB::raw("COALESCE(CAST(JSON_UNQUOTE(JSON_EXTRACT(metadata, '$.size')) AS UNSIGNED), 0)"));
-            }
-        } catch (\Exception $e) {
-            $storageUsed = 0;
-        }
-
         // Recent documents (visibles uniquement)
         $recentDocuments = $baseQuery()->latest()->limit(6)->get();
 
@@ -59,33 +46,19 @@ class DashboardController extends Controller
             ->limit(10)
             ->get();
 
-        // DB health (simple)
-        try {
-            DB::connection()->getPdo();
-            $dbStatus = 'connected';
-        } catch (\Exception $e) {
-            $dbStatus = 'down: ' . $e->getMessage();
-        }
+        // Abonnement de l'entreprise : offre, quotas et échéance (admin uniquement)
+        $subscriptionInfo = $isAdmin ? $this->subscriptionInfo() : null;
 
-        // Storage (S3 / MinIO) health: try list recent objects in documents/ (non-blocking)
-        $storageStatus = 'unknown';
-        try {
-            if (Storage::disk('s3')->exists('documents')) {
-                $storageStatus = 'ok';
-            } else {
-                $storageStatus = 'ok (no documents prefix)';
-            }
-        } catch (\Exception $e) {
-            $storageStatus = 'down: ' . $e->getMessage();
-        }
+        // Graphiques : documents ajoutés et actions journalisées par jour sur 12 mois
+        $chart = $this->activityChart($baseQuery, $isAdmin, $user);
 
-        // quick disk free space (server): only for local environment
-        $diskFree = null;
-        try {
-            $diskFree = disk_free_space(base_path());
-        } catch (\Exception $e) {
-            $diskFree = null;
-        }
+        // Répartition des documents par statut
+        $statusBreakdown = $baseQuery()
+            ->select('status', DB::raw('COUNT(*) as total'))
+            ->groupBy('status')
+            ->pluck('total', 'status')
+            ->mapWithKeys(fn ($total, $status) => [statusLabel($status) => (int) $total])
+            ->sortDesc();
 
         // Métriques spécifiques aux non-admins
         $sharedWithMeCount   = 0;
@@ -96,15 +69,83 @@ class DashboardController extends Controller
                 ->where(function ($q) { $q->whereNull('expires_at')->orWhere('expires_at', '>', now()); })
                 ->count();
 
-            $pendingApprovalsCount = \App\Models\ApprovalStep::where('approver_id', $user->id)
-                ->where('status', 'pending')
-                ->count();
+            // Uniquement les étapes dont c'est le tour de l'utilisateur
+            $pendingApprovalsCount = app(\App\Services\InboxService::class)->approvalsQuery($user)->count();
         }
 
+        $inboxCount = app(\App\Services\InboxService::class)->count($user);
+
         return view('dashboard', compact(
-            'documentsCount', 'categoriesCount', 'usersCount', 'recentDocuments', 'dbStatus', 'storageStatus', 'diskFree',
-            'archivedCount', 'expiredCount', 'confidentialCount', 'draftCount', 'reviewCount', 'storageUsed', 'recentActivities',
+            'inboxCount',
+            'documentsCount', 'categoriesCount', 'usersCount', 'recentDocuments',
+            'archivedCount', 'expiredCount', 'confidentialCount', 'draftCount', 'reviewCount', 'recentActivities',
+            'subscriptionInfo', 'chart', 'statusBreakdown',
             'isAdmin', 'sharedWithMeCount', 'pendingApprovalsCount'
         ));
+    }
+
+    // Offre en cours, consommation des quotas et échéance de l'abonnement
+    private function subscriptionInfo(): ?array
+    {
+        $organization = \App\Support\Tenant::organization();
+        if (!$organization) {
+            return null;
+        }
+
+        $subscription = $organization->activeSubscription() ?? $organization->latestSubscription();
+        $plan         = $subscription?->plan;
+
+        $storageUsed = $organization->storageUsedBytes();
+        $storageMax  = $plan?->max_storage_mb ? $plan->max_storage_mb * 1024 * 1024 : null;
+        $usersUsed   = $organization->usersCount();
+        $usersMax    = $plan?->max_users;
+
+        $periodDays  = $subscription ? max(1, $subscription->starts_at->diffInDays($subscription->ends_at)) : null;
+        $daysLeft    = $subscription?->daysRemaining();
+
+        return [
+            'organization'  => $organization,
+            'subscription'  => $subscription,
+            'plan'          => $plan,
+            'storageUsed'   => $storageUsed,
+            'storageMax'    => $storageMax,
+            'storagePct'    => $storageMax ? min(100, round($storageUsed / $storageMax * 100, 1)) : null,
+            'usersUsed'     => $usersUsed,
+            'usersMax'      => $usersMax,
+            'usersPct'      => $usersMax ? min(100, round($usersUsed / $usersMax * 100, 1)) : null,
+            'daysLeft'      => $daysLeft,
+            'periodPct'     => $periodDays ? max(0, min(100, round(($periodDays - max(0, $daysLeft)) / $periodDays * 100))) : null,
+        ];
+    }
+
+    // Séries quotidiennes (365 jours) : documents ajoutés et actions du journal d'audit
+    private function activityChart(\Closure $baseQuery, bool $isAdmin, User $user): array
+    {
+        $from = today()->subDays(364);
+
+        $documents = $baseQuery()
+            ->where('created_at', '>=', $from)
+            ->selectRaw('DATE(created_at) as day, COUNT(*) as total')
+            ->groupBy('day')
+            ->pluck('total', 'day');
+
+        $actions = \App\Models\DocumentAuditLog::query()
+            ->when(!$isAdmin, fn ($q) => $q->whereHas('document', fn ($d) => $d->visibleTo($user->id)))
+            ->where('created_at', '>=', $from)
+            ->selectRaw('DATE(created_at) as day, COUNT(*) as total')
+            ->groupBy('day')
+            ->pluck('total', 'day');
+
+        $days = [];
+        for ($date = $from->copy(); $date->lte(today()); $date->addDay()) {
+            $key    = $date->toDateString();
+            $days[] = [
+                'date'      => $key,
+                'documents' => (int) ($documents[$key] ?? 0),
+                'actions'   => (int) ($actions[$key] ?? 0),
+            ];
+        }
+
+        return $days;
     }
 }

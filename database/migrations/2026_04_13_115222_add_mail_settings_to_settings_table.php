@@ -16,7 +16,7 @@ return new class extends Migration {
             ['key' => 'mail_password',      'value' => ''],
             ['key' => 'mail_encryption',    'value' => 'tls'],
             ['key' => 'mail_from_address',  'value' => ''],
-            ['key' => 'mail_from_name',     'value' => 'Groupe Bama GED'],
+            ['key' => 'mail_from_name',     'value' => 'GED'],
             ['key' => 'notif_approval',     'value' => '1'],
             ['key' => 'notif_share',        'value' => '1'],
             ['key' => 'notif_expiry',       'value' => '1'],

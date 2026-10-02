@@ -3,7 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Mot de passe oublié — Groupe Bama GED</title>
+    <title>Mot de passe oublié — {{ config('saas.platform_name') }}</title>
+    <x-favicons />
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700;800;900&display=swap" rel="stylesheet">
@@ -47,6 +48,7 @@
 
         {{-- Header --}}
         <div class="text-center mb-8 fade-up d1">
+            <x-logo class="w-14 h-14 mx-auto mb-6" />
             <a href="{{ route('login') }}" class="inline-flex items-center gap-2 text-slate-400 hover:text-orange-600 transition-colors text-xs font-bold mb-6">
                 <i class="fa-solid fa-arrow-left text-[10px]"></i> Retour à la connexion
             </a>
@@ -86,7 +88,7 @@
                     <div class="relative">
                         <i class="fa-solid fa-envelope absolute left-4 top-1/2 -translate-y-1/2 text-slate-300 text-xs pointer-events-none"></i>
                         <input type="email" name="email" value="{{ old('email') }}" required autofocus
-                               placeholder="nom@groupebama.com"
+                               placeholder="nom@entreprise.com"
                                class="input-field {{ $errors->has('email') ? 'border-red-300 bg-red-50' : '' }}">
                     </div>
                     @error('email')
@@ -121,7 +123,7 @@
         {{-- Footer --}}
         <div class="text-center mt-6 fade-up d3">
             <p class="text-[9px] text-slate-300 font-medium">
-                Développé par <span class="text-slate-400 font-bold">Imperis Sarl</span> · Bamako {{ date('Y') }}
+                Développé par <span class="text-slate-400 font-bold">{{ config('saas.vendor_name') }}</span> · {{ date('Y') }}
             </p>
         </div>
 

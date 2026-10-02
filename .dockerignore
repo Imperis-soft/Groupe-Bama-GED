@@ -1,0 +1,38 @@
+# Aucun secret ni artefact local dans l'image
+.env
+.env.*
+!.env.example
+.git
+.gitignore
+.DS_Store
+.idea
+.vscode
+
+# Reconstruits dans l'image
+node_modules
+vendor
+public/build
+public/hot
+public/storage
+bootstrap/cache/*.php
+
+# Données locales
+storage/logs/*
+storage/framework/cache/*
+storage/framework/sessions/*
+storage/framework/views/*
+storage/app/*
+storage/pail
+storage/*.key
+
+# Outils et fichiers propres au poste de dev
+imperis-tools
+docker/nginx/certs
+Caddyfile
+serve-https.bat
+install-cert-admin.ps1
+"conseils config docker"
+tests
+phpunit.xml
+.phpunit.cache
+docker-compose.yml

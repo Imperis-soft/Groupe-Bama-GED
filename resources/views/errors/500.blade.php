@@ -3,12 +3,14 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Erreur serveur — Groupe Bama GED</title>
+    <title>Erreur serveur — {{ config('saas.platform_name') }}</title>
+    <x-favicons />
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
 </head>
 <body class="h-full bg-slate-50 flex items-center justify-center p-4">
 <div class="text-center max-w-md">
+    <x-logo class="w-12 h-12 mx-auto mb-8" />
     <div class="w-20 h-20 rounded-3xl bg-amber-100 flex items-center justify-center mx-auto mb-6">
         <i class="fa-solid fa-triangle-exclamation text-amber-500 text-4xl"></i>
     </div>
@@ -28,7 +30,7 @@
             <i class="fa-solid fa-house text-[10px]"></i> Tableau de bord
         </a>
     </div>
-    <p class="text-[9px] text-slate-300 mt-8 uppercase tracking-widest">Groupe Bama GED — © {{ date('Y') }}</p>
+    <p class="text-[9px] text-slate-300 mt-8 uppercase tracking-widest">{{ config('saas.platform_name') }} — © {{ date('Y') }}</p>
 </div>
 </body>
 </html>

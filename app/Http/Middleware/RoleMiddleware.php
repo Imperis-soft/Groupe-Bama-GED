@@ -7,8 +7,8 @@ use Illuminate\Http\Request;
 
 class RoleMiddleware
 {
-    // Vérifier si l'utilisateur a le rôle requis
-    public function handle(Request $request, Closure $next, $role)
+    // Vérifier si l'utilisateur a au moins un des rôles requis (ex: role:admin,editor)
+    public function handle(Request $request, Closure $next, string ...$roles)
     {
         $user = $request->user();
 
@@ -20,7 +20,7 @@ class RoleMiddleware
             abort(403);
         }
 
-        if (! $user->hasRole($role)) {
+        if (! $user->hasAnyRole($roles)) {
             abort(403);
         }
 

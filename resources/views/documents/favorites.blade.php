@@ -27,7 +27,7 @@
             @foreach($documents as $doc)
             <div class="flex items-center gap-4 px-5 py-4 hover:bg-slate-50/60 transition-colors group">
                 <div class="w-9 h-9 rounded-xl bg-orange-50 flex items-center justify-center shrink-0 group-hover:bg-orange-600 transition-colors">
-                    <i class="fa-solid fa-file-word text-orange-500 text-sm group-hover:text-white transition-colors"></i>
+                    <x-file-icon :document="$doc" class="text-sm group-hover:text-white transition-colors" />
                 </div>
                 <div class="flex-1 min-w-0">
                     <a href="{{ route('documents.show', $doc) }}"

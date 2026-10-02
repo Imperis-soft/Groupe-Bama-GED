@@ -9,12 +9,15 @@ class BackfillMinioUrl extends Seeder
 {
     public function run(): void
     {
-        $base   = rtrim(config('filesystems.disks.s3.url'), '/');
-        $bucket = config('filesystems.disks.s3.bucket');
+        // URL construite à partir du bucket de l'entreprise de chaque document
+        $count = Document::withoutGlobalScopes()->with('organization')->whereNull('minio_url')->get()->each(function ($doc) {
+            $base   = rtrim(config('filesystems.disks.s3.url'), '/');
+            $bucket = config('filesystems.disks.s3.bucket');
 
-        $count = Document::whereNull('minio_url')->get()->each(function ($doc) use ($base, $bucket) {
             $doc->update([
-                'minio_url' => $base . '/' . $bucket . '/' . ltrim($doc->file_path, '/'),
+                'minio_url' => $doc->organization
+                    ? $doc->organization->fileUrl($doc->file_path)
+                    : $base . '/' . $bucket . '/' . ltrim($doc->file_path, '/'),
             ]);
         })->count();
 

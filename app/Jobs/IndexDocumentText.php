@@ -3,106 +3,59 @@
 namespace App\Jobs;
 
 use App\Models\Document;
+use App\Services\TextExtractor;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
-use Illuminate\Support\Facades\Storage;
 use Exception;
 
+/**
+ * Lit le texte du fichier courant d'un document (OCR compris) pour la recherche plein texte
+ * et l'empreinte de contenu utilisée par la détection des doublons.
+ */
 class IndexDocumentText implements ShouldQueue
 {
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
     public int $documentId;
 
-    public $timeout = 120;
+    public $timeout = 600;
 
-    // Constructor
     public function __construct(int $documentId)
     {
         $this->documentId = $documentId;
     }
 
-    // Handle the job
-    public function handle()
+    public function handle(TextExtractor $extractor)
     {
-        $doc = Document::find($this->documentId);
+        $doc = Document::withoutGlobalScope('organization')->find($this->documentId);
         if (! $doc) return;
 
         $path = $doc->file_path;
+        $tmp  = tempnam(sys_get_temp_dir(), 'docidx_');
 
         try {
-            // Download file to temp
-            $tmp = tempnam(sys_get_temp_dir(), 'docidx_');
-            $stream = Storage::disk('s3')->getDriver()->readStream($path);
-            if ($stream === false) {
+            $stream = $doc->disk()->readStream($path);
+            if (! $stream) {
                 throw new Exception('Impossible d ouvrir le flux distant.');
             }
             $out = fopen($tmp, 'w');
-            while (! feof($stream)) {
-                fwrite($out, fread($stream, 8192));
-            }
+            stream_copy_to_stream($stream, $out);
             fclose($out);
             if (is_resource($stream)) fclose($stream);
 
-            $text = '';
-            $ext = strtolower(pathinfo($path, PATHINFO_EXTENSION));
+            $text = $extractor->fromFile($tmp, pathinfo($path, PATHINFO_EXTENSION));
 
-            if ($ext === 'docx') {
-                $text = $this->extractTextFromDocx($tmp);
-            } elseif ($ext === 'pdf') {
-                // try pdftotext
-                $pdftotext = trim(shell_exec('which pdftotext'));
-                if ($pdftotext) {
-                    $outTxt = $tmp . '.txt';
-                    @shell_exec("pdftotext " . escapeshellarg($tmp) . " " . escapeshellarg($outTxt));
-                    if (file_exists($outTxt)) {
-                        $text = file_get_contents($outTxt);
-                        @unlink($outTxt);
-                    }
-                }
-                // fallback empty
-            } else {
-                // Try tesseract for images or generic fallback
-                $tesseract = trim(shell_exec('which tesseract'));
-                if ($tesseract) {
-                    $outTxt = $tmp . '.txt';
-                    @shell_exec("tesseract " . escapeshellarg($tmp) . " " . escapeshellarg($tmp) . " 2>/dev/null");
-                    if (file_exists($outTxt)) {
-                        $text = file_get_contents($outTxt);
-                        @unlink($outTxt);
-                    }
-                }
-            }
-
-            // Save extracted text and update search vector via trigger
-            $doc->content_text = $text ?: null;
-            $doc->save();
-
-            @unlink($tmp);
+            $doc->fillContent($text ?: null)->saveQuietly();
 
         } catch (Exception $e) {
-            \Log::error('IndexDocumentText failed: ' . $e->getMessage());
+            \Log::error('IndexDocumentText failed: ' . $e->getMessage(), ['document_id' => $this->documentId]);
+            \App\Models\SystemEvent::record('warning', 'processing', 'Lecture du texte (OCR / indexation) impossible : ' . $e->getMessage(),
+                ['document' => $doc->reference ?? $this->documentId], $doc->organization_id ?? null, hash('sha256', 'index|' . get_class($e) . '|' . ($doc->organization_id ?? '')));
+        } finally {
+            @unlink($tmp);
         }
-    }
-
-    // Extract text from DOCX files
-    protected function extractTextFromDocx(string $filePath): string
-    {
-        $text = '';
-        $zip = new \ZipArchive();
-        if ($zip->open($filePath) === true) {
-            if (($idx = $zip->locateName('word/document.xml')) !== false) {
-                $data = $zip->getFromIndex($idx);
-                // Strip xml tags
-                $data = preg_replace('/<w:[^>]+>/', ' ', $data);
-                $data = strip_tags($data);
-                $text = html_entity_decode($data, ENT_QUOTES | ENT_XML1, 'UTF-8');
-            }
-            $zip->close();
-        }
-        return $text;
     }
 }

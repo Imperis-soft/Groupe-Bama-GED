@@ -63,6 +63,13 @@
                                 <span class="text-[9px] text-slate-300 font-bold">—</span>
                                 @endforelse
                             </div>
+                            @if($user->departments->isNotEmpty())
+                            <div class="flex flex-wrap gap-1 mt-1">
+                                @foreach($user->departments as $department)
+                                <span class="inline-flex items-center gap-1 text-[9px] font-bold text-slate-400"><i class="fa-solid fa-sitemap text-[8px]"></i>{{ $department->name }}</span>
+                                @endforeach
+                            </div>
+                            @endif
                         </td>
                         <td class="px-6 py-4">
                             <span class="text-xs text-slate-500 font-medium">{{ $user->phone ?? '—' }}</span>
@@ -127,6 +134,13 @@
                             <span class="text-[9px] text-slate-300">Aucun rôle</span>
                             @endforelse
                         </div>
+                        @if($user->departments->isNotEmpty())
+                        <div class="flex flex-wrap gap-1 mt-1">
+                            @foreach($user->departments as $department)
+                            <span class="inline-flex items-center gap-1 text-[9px] font-bold text-slate-400"><i class="fa-solid fa-sitemap text-[8px]"></i>{{ $department->name }}</span>
+                            @endforeach
+                        </div>
+                        @endif
                     </div>
                     @if(auth()->user()->hasRole('admin'))
                     <div class="flex items-center gap-1 shrink-0">

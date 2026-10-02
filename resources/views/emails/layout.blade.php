@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>{{ $subject ?? 'Groupe Bama GED' }}</title>
+<title>{{ $subject ?? brandName() }}</title>
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
   body { background: #f1f5f9; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif; -webkit-font-smoothing: antialiased; }
@@ -13,8 +13,8 @@
   /* Header */
   .header { background: #0f172a; padding: 28px 36px; }
   .header-inner { display: flex; align-items: center; gap: 14px; }
-  .logo-box { width: 42px; height: 42px; background: #ea580c; border-radius: 12px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
-  .logo-box svg { width: 22px; height: 22px; fill: white; }
+  .logo-box { width: 46px; height: 46px; background: #ffffff; border-radius: 12px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+  .logo-box img { width: 38px; height: 38px; display: block; }
   .brand-name { font-size: 16px; font-weight: 900; color: #ffffff; letter-spacing: -0.3px; }
   .brand-sub { font-size: 10px; font-weight: 700; color: #64748b; text-transform: uppercase; letter-spacing: 1.5px; margin-top: 1px; }
 
@@ -72,10 +72,12 @@
     <div class="header">
       <div class="header-inner">
         <div class="logo-box">
-          <svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6zm-1 1.5L18.5 9H13V3.5zM9 17H7v-1h2v1zm0-3H7v-1h2v1zm0-3H7v-1h2v1zm8 6h-6v-1h6v1zm0-3h-6v-1h6v1zm0-3h-6v-1h6v1z"/></svg>
+          {{-- Logo intégré au message (CID) : visible même si le site n'est pas accessible publiquement --}}
+          <img src="{{ isset($message) && $message instanceof \Illuminate\Mail\Message ? $message->embed(public_path('images/logo-ged-96.png')) : asset('images/logo-ged-96.png') }}"
+               alt="{{ config('saas.platform_name') }}" width="38" height="38">
         </div>
         <div>
-          <div class="brand-name">Groupe Bama</div>
+          <div class="brand-name">{{ brandName() }}</div>
           <div class="brand-sub">GED Platform</div>
         </div>
       </div>
@@ -91,7 +93,7 @@
 
     {{-- Footer --}}
     <div class="footer">
-      <div class="footer-brand">Groupe Bama — GED</div>
+      <div class="footer-brand">{{ brandName() }} — {{ config('saas.platform_name') }}</div>
       <div class="footer-text">
         Cet email a été envoyé automatiquement, merci de ne pas y répondre.<br>
         <a href="{{ config('app.url') }}">Accéder à la plateforme</a>

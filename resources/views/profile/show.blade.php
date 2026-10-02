@@ -94,6 +94,66 @@
                 </form>
             </div>
 
+            {{-- Absence et suppléant --}}
+            <div class="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden" id="absence">
+                <div class="flex items-center gap-2 px-5 py-4 border-b border-slate-50">
+                    <div class="w-7 h-7 rounded-lg bg-purple-50 flex items-center justify-center shrink-0">
+                        <i class="fa-solid fa-user-clock text-purple-500 text-xs"></i>
+                    </div>
+                    <h2 class="text-xs font-black text-slate-900 uppercase tracking-widest">Absence et suppléant</h2>
+                </div>
+                <div class="p-5 space-y-4">
+                    @if($user->absent_until && $user->absent_until->gte(today()))
+                    <div class="flex items-start gap-3 bg-purple-50 border border-purple-100 rounded-xl px-4 py-3">
+                        <i class="fa-solid fa-circle-info text-purple-500 mt-0.5"></i>
+                        <p class="text-xs text-purple-800 flex-1">
+                            {{ $user->isAbsent() ? 'Vous êtes absent·e' : 'Absence prévue' }} du <strong>{{ $user->absent_from->format('d/m/Y') }}</strong>
+                            au <strong>{{ $user->absent_until->format('d/m/Y') }}</strong>.
+                            Les validations sont confiées à <strong>{{ $user->delegate?->full_name ?? '—' }}</strong>.
+                        </p>
+                        <form method="POST" action="{{ route('profile.absence') }}">
+                            @csrf @method('PUT')
+                            <input type="hidden" name="clear" value="1">
+                            <button type="submit" class="text-[10px] font-black uppercase text-purple-700 hover:underline">Je suis de retour</button>
+                        </form>
+                    </div>
+                    @else
+                    <p class="text-xs text-slate-500">Pendant un congé ou une mission, vos validations sont automatiquement transmises à la personne choisie.</p>
+                    @endif
+
+                    <form method="POST" action="{{ route('profile.absence') }}" class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                        @csrf @method('PUT')
+                        <div>
+                            <label class="block text-[9px] font-black text-slate-500 uppercase tracking-widest mb-1.5">Du</label>
+                            <input type="date" name="absent_from" required value="{{ old('absent_from', $user->absent_from?->format('Y-m-d') ?? today()->format('Y-m-d')) }}"
+                                   class="w-full bg-slate-50 border border-slate-100 rounded-xl px-3 py-2.5 text-sm font-medium text-slate-800 focus:outline-none focus:ring-2 focus:ring-orange-500">
+                        </div>
+                        <div>
+                            <label class="block text-[9px] font-black text-slate-500 uppercase tracking-widest mb-1.5">Au (inclus)</label>
+                            <input type="date" name="absent_until" required value="{{ old('absent_until', $user->absent_until?->format('Y-m-d')) }}"
+                                   class="w-full bg-slate-50 border border-slate-100 rounded-xl px-3 py-2.5 text-sm font-medium text-slate-800 focus:outline-none focus:ring-2 focus:ring-orange-500">
+                            @error('absent_until')<p class="text-red-500 text-[9px] font-bold mt-1">{{ $message }}</p>@enderror
+                        </div>
+                        <div>
+                            <label class="block text-[9px] font-black text-slate-500 uppercase tracking-widest mb-1.5">Suppléant</label>
+                            <select name="delegate_id" required
+                                    class="w-full bg-slate-50 border border-slate-100 rounded-xl px-3 py-2.5 text-sm font-medium text-slate-800 focus:outline-none focus:ring-2 focus:ring-orange-500">
+                                <option value="">Choisir…</option>
+                                @foreach($colleagues as $colleague)
+                                <option value="{{ $colleague->id }}" {{ (int) old('delegate_id', $user->delegate_id) === $colleague->id ? 'selected' : '' }}>{{ $colleague->full_name }}</option>
+                                @endforeach
+                            </select>
+                            @error('delegate_id')<p class="text-red-500 text-[9px] font-bold mt-1">{{ $message }}</p>@enderror
+                        </div>
+                        <div class="sm:col-span-3">
+                            <button type="submit" class="bg-purple-600 hover:bg-purple-500 active:scale-95 text-white px-5 py-2.5 rounded-xl font-black text-xs uppercase tracking-widest transition-all">
+                                <i class="fa-solid fa-floppy-disk mr-1.5"></i> {{ $user->absent_until && $user->absent_until->gte(today()) ? 'Modifier l\'absence' : 'Déclarer une absence' }}
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
             {{-- Mot de passe --}}
             <div class="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
                 <div class="flex items-center gap-2 px-5 py-4 border-b border-slate-50">
@@ -191,7 +251,7 @@
                 <div class="space-y-3">
                     <div class="flex justify-between items-center text-xs">
                         <span class="text-slate-400 font-medium">ID</span>
-                        <span class="font-mono font-bold text-slate-600">#Bama-P{{ $user->id }}</span>
+                        <span class="font-mono font-bold text-slate-600">#GED-P{{ $user->id }}</span>
                     </div>
                     <div class="h-px bg-slate-50"></div>
                     <div class="flex justify-between items-center text-xs">

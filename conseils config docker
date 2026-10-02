@@ -1,0 +1,68 @@
+## Contexte infra : serveur Docker Imperissoft (VPS partagé, géré via Portainer)
+
+Une autre app tourne déjà sur ce serveur (Notaris, Laravel). Ta nouvelle app doit cohabiter avec elle
+SANS rien casser. Voici comment l'infra existante est montée et les règles à respecter.
+
+### Ce qui existe déjà (NE PAS TOUCHER)
+- **MySQL partagé** : un conteneur MySQL existe déjà, joignable sous le hostname `mysql`, port 3306,
+  sur le réseau Docker EXTERNE `db_mysql_mynetwork`. Notaris utilise la base `ntr2`.
+- **Stack Notaris** : conteneurs `notaris_app` (PHP-FPM, port interne 9015) et `notaris_nginx`
+  (port hôte **8002** → 80). Réseau interne `laravel_network`.
+- Volumes Notaris : `storage_data`, `cache_data`, `app_public`, `nginx_conf`, `nginx_logs`.
+- Domaine `notaris.imperis.com` : le TLS/HTTPS est géré en amont (reverse proxy de l'hôte → localhost:8002).
+- Images publiées sur Docker Hub sous `imperissoft/<nom>`, buildées en `--platform linux/amd64`
+  (je développe sur Mac ARM, le VPS est en amd64).
+
+### MySQL — règles
+1. **Ne crée PAS de nouveau conteneur MySQL.** Branche le service applicatif sur le réseau externe :
+   networks: { db_mysql_mynetwork: { external: true } }  → DB_HOST=mysql, DB_PORT=3306
+2. Crée une **base dédiée** + un **utilisateur dédié** (pas root) limité à cette base :
+   CREATE DATABASE <app>_db CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+   CREATE USER '<app>_user'@'%' IDENTIFIED BY '<mot de passe fort>';
+   GRANT ALL PRIVILEGES ON <app>_db.* TO '<app>_user'@'%'; FLUSH PRIVILEGES;
+3. Ne touche jamais à la base `ntr2`. Interdit : `migrate:fresh`, `db:wipe`, `DROP`, ou tout script
+   qui agit sur toutes les bases. Fais un `mysqldump` de ta base avant toute migration risquée.
+4. Seul le conteneur PHP doit être sur `db_mysql_mynetwork`, pas nginx. Ne publie jamais le port 3306 sur l'hôte.
+5. L'entrypoint doit **attendre MySQL** (boucle de retry ~30 × 3 s) avant les migrations, comme le fait Notaris.
+
+### Docker — règles anti-collision
+- **Noms uniques partout** : container_name (`<app>_app`, `<app>_nginx`), volumes (`<app>_storage`…),
+  réseau interne (`<app>_network`). Préfixe tout avec le nom de l'app. Dans Portainer, utilise un **nom de stack différent**.
+- **Port hôte unique** : 8002 est pris par Notaris → prends 8003 (vérifie avec `docker ps` / `ss -tlnp`).
+- Dans la conf nginx, `fastcgi_pass` doit viser le **nom de conteneur unique** (`<app>_app:9000`),
+  pas un nom générique comme `app` : les deux stacks partagent `db_mysql_mynetwork`, donc un alias en double
+  = risque d'envoyer les requêtes vers la mauvaise app.
+- Ne passe pas les secrets en clair dans le docker-compose ni dans le repo. Mets-les dans les variables
+  d'environnement de la stack Portainer (`${DB_PASSWORD}`, `${APP_KEY}`…). Aucun `.env` réel dans l'image.
+- `restart: unless-stopped` sur tous les services.
+- Limite la RAM/CPU si possible (`deploy.resources.limits`) : le VPS est partagé. Notaris tourne avec
+  pm.max_children=50 → ne monte pas trop haut sur la nouvelle app.
+
+### Nginx — recommandations
+- Un conteneur `nginx:1.25-alpine` par app, qui sert `public/` et passe le PHP en FastCGI.
+- Préfère **builder une image nginx avec la conf intégrée** (ou un bind mount en lecture seule) plutôt que
+  le système de Notaris (l'entrypoint PHP copie la conf dans un volume partagé et nginx attend en boucle).
+  Ça marche, mais c'est fragile.
+- Attention au volume sur `public/` : un volume nommé garde les anciens assets après mise à jour de l'image.
+  Si tu partages `public/` entre PHP et nginx, l'entrypoint doit recopier `public/build` à chaque démarrage.
+- À garder : `client_max_body_size 50M`, `fastcgi_read_timeout 300s`, blocage de `/.env` et des dotfiles,
+  gzip, headers de sécurité (X-Frame-Options, X-Content-Type-Options, Referrer-Policy).
+- HTTPS : le nginx du conteneur écoute en HTTP sur le port 80. Le reverse proxy de l'hôte fait le TLS.
+  Il faudra ajouter un vhost pour le nouveau domaine → localhost:8003 + certificat (certbot), **sans modifier
+  le vhost de notaris.imperis.com**. Dans Laravel, configure `trustProxies` pour que les URLs sortent bien en https.
+
+### Laravel / PHP (si c'est du Laravel)
+- Build multi-stage : node:20-alpine pour Vite, puis php:8.2-fpm (pdo_mysql, gd, zip, intl, bcmath, opcache).
+- opcache avec `validate_timestamps=0` → chaque déploiement = **recréer le conteneur** (pull + recreate).
+- Entrypoint : attente MySQL → `migrate --force` → seeders seulement si les tables sont vides →
+  `config:cache` / `route:cache` / `view:cache` → `exec php-fpm`.
+- `SESSION_DOMAIN` = le domaine de la nouvelle app (pas celui de Notaris), `SESSION_SECURE_COOKIE=true`.
+
+### Process de déploiement attendu
+1. En local : `docker build --platform linux/amd64 -t imperissoft/<app>:latest .` puis `docker push`.
+2. Sur le VPS (Portainer) : nouvelle stack → pull → deploy. Ou en SSH : `docker compose -p <app> up -d`.
+3. Vérifier : `docker logs <app>_app`, `curl -I localhost:8003`, puis que **Notaris répond toujours** sur 8002.
+
+Livrables attendus : Dockerfile, docker-compose.yml (stack Portainer), conf nginx, entrypoint.sh,
+script de build/push, liste des variables d'env à saisir dans Portainer, et les commandes SQL
+pour créer la base et l'utilisateur.

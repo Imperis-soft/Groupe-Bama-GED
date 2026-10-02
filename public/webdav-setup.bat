@@ -1,6 +1,6 @@
 @echo off
 echo ============================================
-echo  Configuration WebDAV - Groupe Bama GED
+echo  Configuration WebDAV - GED
 echo ============================================
 echo.
 

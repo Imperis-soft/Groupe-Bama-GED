@@ -10,22 +10,24 @@ use Illuminate\Support\Facades\Mail;
 
 class NotificationService
 {
-    private array $settings;
+    // Paramètres chargés par entreprise (le service peut servir plusieurs entreprises en console)
+    private array $settingsCache = [];
 
-    public function __construct()
+    private function settings(): array
     {
-        $this->settings = DB::table('settings')->pluck('value', 'key')->toArray();
+        $key = \App\Support\Tenant::id() ?? 0;
+        return $this->settingsCache[$key] ??= appSettings();
     }
 
     private function isMailEnabled(): bool
     {
-        return ($this->settings['mail_enabled'] ?? '0') === '1'
-            && !empty($this->settings['mail_host'] ?? '');
+        return ($this->settings()['mail_enabled'] ?? '0') === '1'
+            && !empty($this->settings()['mail_host'] ?? '');
     }
 
     private function isNotifEnabled(string $type): bool
     {
-        return ($this->settings["notif_{$type}"] ?? '1') === '1';
+        return ($this->settings()["notif_{$type}"] ?? '1') === '1';
     }
 
     public function notify(User $user, string $type, string $title, string $message, string $link = null, $notifiable = null): GedNotification
@@ -59,6 +61,8 @@ class NotificationService
             str_contains($type, 'approval') => 'approval',
             str_contains($type, 'share')    => 'share',
             str_contains($type, 'expir')    => 'expiry',
+            str_contains($type, 'retention') => 'expiry',
+            str_contains($type, 'integrity') => 'approval',
             str_contains($type, 'comment')  => 'comment',
             default                         => 'approval',
         };
@@ -68,57 +72,79 @@ class NotificationService
     {
         try {
             config([
-                'mail.mailers.smtp.host'       => $this->settings['mail_host'] ?? '',
-                'mail.mailers.smtp.port'       => $this->settings['mail_port'] ?? 587,
-                'mail.mailers.smtp.username'   => $this->settings['mail_username'] ?? '',
-                'mail.mailers.smtp.password'   => $this->settings['mail_password'] ?? '',
-                'mail.mailers.smtp.encryption' => $this->settings['mail_encryption'] ?? 'tls',
-                'mail.from.address'            => $this->settings['mail_from_address'] ?? '',
-                'mail.from.name'               => $this->settings['mail_from_name'] ?? 'GED',
+                'mail.mailers.smtp.host'       => $this->settings()['mail_host'] ?? '',
+                'mail.mailers.smtp.port'       => $this->settings()['mail_port'] ?? 587,
+                'mail.mailers.smtp.username'   => $this->settings()['mail_username'] ?? '',
+                'mail.mailers.smtp.password'   => $this->settings()['mail_password'] ?? '',
+                'mail.mailers.smtp.encryption' => $this->settings()['mail_encryption'] ?? 'tls',
+                'mail.from.address'            => $this->settings()['mail_from_address'] ?? '',
+                'mail.from.name'               => $this->settings()['mail_from_name'] ?? 'GED',
             ]);
 
             $viewData = array_merge(['subject' => $title, 'link' => $link], $data);
 
             Mail::send($template, $viewData, function ($mail) use ($user, $title) {
                 $mail->to($user->email, $user->full_name)
-                     ->subject("[GED] {$title}");
+                     ->subject('[' . brandName() . "] {$title}");
             });
 
             $notif->update(['email_sent' => true]);
         } catch (\Exception $e) {
             Log::warning('GED notification email failed: ' . $e->getMessage());
+            // Souvent un SMTP mal configuré dans les paramètres de l'entreprise
+            \App\Models\SystemEvent::record('warning', 'mail', 'Envoi d\'email impossible : ' . $e->getMessage(),
+                ['to' => $user->email, 'smtp' => $this->settings()['mail_host'] ?? null],
+                \App\Support\Tenant::check() ? \App\Support\Tenant::id() : null,
+                hash('sha256', 'mail|' . (\App\Support\Tenant::check() ? \App\Support\Tenant::id() : 0) . '|' . get_class($e)));
         }
     }
 
-    // Notifier tous les approbateurs d'un document
+    // Notifier l'approbateur de l'étape en cours (les suivants le seront à leur tour)
     public function notifyApprovers(\App\Models\Document $document): void
     {
-        if (!$this->isNotifEnabled('approval')) return;
+        $step = $document->approvalSteps()->where('status', 'pending')->orderBy('step_order')->first();
+        if ($step) {
+            $this->notifyApprovalNeeded($step);
+        }
+    }
 
-        $steps = $document->approvalSteps()->where('status', 'pending')->with('approver')->get();
-        foreach ($steps as $step) {
-            $notif = GedNotification::create([
-                'user_id'         => $step->approver->id,
-                'type'            => 'approval_needed',
-                'title'           => 'Validation requise',
-                'message'         => "Le document \"{$document->title}\" attend votre validation.",
-                'link'            => url("/documents/{$document->id}/approval"),
-                'notifiable_type' => get_class($document),
-                'notifiable_id'   => $document->id,
-                'is_read'         => false,
-                'email_sent'      => false,
+    // Validation demandée à l'approbateur d'une étape (ou relance si elle est en retard)
+    public function notifyApprovalNeeded(\App\Models\ApprovalStep $step, bool $reminder = false): void
+    {
+        if (!$this->isNotifEnabled('approval') || !$step->approver) return;
+
+        $document = $step->document;
+        $approver = $step->approver;
+        $link = url("/documents/{$document->id}/approval");
+        $title = $reminder ? 'Rappel : validation en attente' : 'Validation requise';
+        $message = $reminder
+            ? "Le document \"{$document->title}\" attend toujours votre validation" . ($step->due_at ? ' (échéance : ' . $step->due_at->format('d/m/Y') . ')' : '') . '.'
+            : "Le document \"{$document->title}\" attend votre validation.";
+        if ($step->delegated_from_id && $step->delegatedFrom) {
+            $message .= " Vous remplacez {$step->delegatedFrom->full_name}, absent(e).";
+        }
+
+        $notif = GedNotification::create([
+            'user_id'         => $approver->id,
+            'type'            => $reminder ? 'approval_reminder' : 'approval_needed',
+            'title'           => $title,
+            'message'         => $message,
+            'link'            => $link,
+            'notifiable_type' => get_class($document),
+            'notifiable_id'   => $document->id,
+            'is_read'         => false,
+            'email_sent'      => false,
+        ]);
+
+        if ($this->isMailEnabled()) {
+            $this->sendEmail($approver, $title, '', $link, $notif, 'emails.approval-needed', [
+                'recipientName' => $approver->full_name,
+                'documentTitle' => $document->title,
+                'documentRef'   => $document->reference,
+                'category'      => $document->category?->name,
+                'stepOrder'     => 'Étape ' . $step->step_order . ($reminder ? ' — rappel' : ''),
+                'dueDate'       => $step->due_at?->format('d/m/Y'),
             ]);
-
-            if ($this->isMailEnabled()) {
-                $this->sendEmail($step->approver, 'Validation requise', '', url("/documents/{$document->id}/approval"), $notif, 'emails.approval-needed', [
-                    'recipientName' => $step->approver->full_name,
-                    'documentTitle' => $document->title,
-                    'documentRef'   => $document->reference,
-                    'category'      => $document->category?->name,
-                    'stepOrder'     => 'Étape ' . $step->step_order,
-                    'dueDate'       => $step->due_at?->format('d/m/Y'),
-                ]);
-            }
         }
     }
 

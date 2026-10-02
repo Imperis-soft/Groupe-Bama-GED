@@ -8,16 +8,29 @@
     $pendingCount  = $steps->where('status', 'pending')->count();
     $progress      = $totalSteps > 0 ? round(($approvedCount / $totalSteps) * 100) : 0;
     $canConfigure  = auth()->user()->hasRole('admin') || $document->creator_id === auth()->id();
+    // Un circuit ne se lance que sur un brouillon (contenu gelé ensuite jusqu'à la décision)
+    $canLaunch     = $canConfigure && $document->status === 'draft' && !$document->isUnderLegalHold();
+    $rule          = $document->workflowRule();
 @endphp
 
 <div x-data="{
-    modal: {{ ($canConfigure && $steps->isEmpty()) ? 'true' : 'false' }},
+    modal: {{ ($canLaunch && $steps->isEmpty()) ? 'true' : 'false' }},
     selected: [],
     dueDays: '',
+    dues: {},
+    templateId: null,
+    templates: @js($resolvedTemplates),
+    suggestedTemplateId: @js($suggestedTemplateId),
     toggleUser(id) {
         const idx = this.selected.indexOf(id);
         if (idx === -1) this.selected.push(id);
         else this.selected.splice(idx, 1);
+    },
+    // Un modèle pré-remplit les validateurs et leurs délais (toujours modifiables)
+    applyTemplate(template) {
+        this.templateId = template.id;
+        this.selected = template.steps.map(s => s.user_id);
+        this.dues = Object.fromEntries(template.steps.map(s => [s.user_id, s.due_days ?? '']));
     },
     isSelected(id) { return this.selected.includes(id); },
     moveUp(idx) { if (idx > 0) { [this.selected[idx], this.selected[idx-1]] = [this.selected[idx-1], this.selected[idx]]; this.selected = [...this.selected]; } },
@@ -55,11 +68,11 @@
                 </div>
             </div>
             <div class="flex items-center gap-2 shrink-0">
-                @if($canConfigure)
+                @if($canLaunch)
                 <button @click="modal = true"
                     class="inline-flex items-center gap-2 bg-orange-600 hover:bg-orange-500 active:scale-95 text-white text-xs font-black px-4 py-2.5 rounded-xl shadow-lg shadow-orange-900/30 transition-all">
                     <i class="fa-solid fa-{{ $steps->isEmpty() ? 'rocket' : 'rotate' }} text-[10px]"></i>
-                    {{ $steps->isEmpty() ? 'Démarrer' : 'Relancer' }}
+                    {{ $steps->isEmpty() ? 'Démarrer' : 'Nouveau circuit' }}
                 </button>
                 @endif
                 <a href="{{ route('documents.show', $document) }}"
@@ -98,19 +111,25 @@
     </div>
 </div>
 
-{{-- ── ALERTE SUCCÈS ── --}}
+{{-- ── ALERTES ── --}}
 @if(session('success'))
 <div class="flex items-start gap-3 bg-emerald-50 border border-emerald-200 rounded-2xl px-5 py-4">
     <i class="fa-solid fa-circle-check text-emerald-500 text-lg shrink-0 mt-0.5"></i>
     <div>
         <p class="text-sm font-black text-emerald-800">{{ session('success') }}</p>
+        @if($canLaunch && $steps->where('status', 'pending')->isEmpty())
         <p class="text-xs text-emerald-600 mt-0.5">
-            Cliquez sur <strong>Démarrer</strong> pour configurer les validateurs, ou
-            <a href="{{ route('documents.show', $document) }}" class="underline font-bold">ignorez cette étape</a>.
+            Cliquez sur <strong>Démarrer</strong> pour configurer les validateurs
+            @unless($rule['approval'])
+            ou <a href="{{ route('documents.show', $document) }}" class="underline font-bold">ignorez cette étape</a>
+            @endunless
         </p>
+        @endif
     </div>
 </div>
 @endif
+
+@include('documents._workflow-banner')
 
 {{-- ── ÉTAPES ── --}}
 <div class="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
@@ -136,7 +155,7 @@
         </div>
         <p class="text-sm font-black text-slate-400">Pas encore de validateurs</p>
         <p class="text-xs text-slate-300 mt-1 max-w-xs">Cliquez sur <strong class="text-slate-400">Démarrer</strong> pour choisir qui doit valider ce document.</p>
-        @if($canConfigure)
+        @if($canLaunch)
         <button @click="modal = true"
             class="mt-5 inline-flex items-center gap-2 bg-orange-600 hover:bg-orange-500 active:scale-95 text-white text-xs font-black uppercase tracking-widest px-5 py-2.5 rounded-xl shadow-lg shadow-orange-200 transition-all">
             <i class="fa-solid fa-rocket text-[10px]"></i> Démarrer le workflow
@@ -165,22 +184,45 @@
                 <div class="flex-1 min-w-0">
                     <div class="flex items-start justify-between gap-3 flex-wrap">
                         <div>
-                            <p class="text-sm font-black text-slate-800">{{ $step->approver->full_name }}</p>
+                            <p class="text-sm font-black text-slate-800">
+                                {{ $step->approver->full_name }}
+                                @if($currentStep?->id === $step->id)
+                                <span class="ml-1 text-[9px] font-black uppercase tracking-wider text-blue-600 bg-blue-50 rounded px-1.5 py-0.5 align-middle">En cours</span>
+                                @endif
+                            </p>
                             <p class="text-[10px] text-slate-400 mt-0.5">
                                 <i class="fa-solid fa-envelope text-[8px] mr-1"></i>{{ $step->approver->email }}
                             </p>
+                            @if($step->delegatedFrom)
+                            <p class="text-[10px] text-purple-600 font-bold mt-0.5">
+                                <i class="fa-solid fa-user-clock text-[9px] mr-1"></i>En remplacement de {{ $step->delegatedFrom->full_name }} (absent·e)
+                            </p>
+                            @endif
                         </div>
                         <div class="flex items-center gap-2 shrink-0 flex-wrap">
-                            @if($step->due_at)
+                            @if($step->isOverdue())
+                            <span class="text-[9px] font-black text-red-600 bg-red-50 ring-1 ring-red-200 px-2 py-1 rounded-lg">
+                                <i class="fa-solid fa-triangle-exclamation text-[8px] mr-0.5"></i>En retard · {{ $step->due_at->format('d/m/Y') }}
+                            </span>
+                            @elseif($step->due_at)
                             <span class="text-[9px] font-bold text-slate-400 bg-slate-50 px-2 py-1 rounded-lg">
-                                <i class="fa-regular fa-clock text-[8px] mr-0.5"></i>{{ $step->due_at->format('d/m/Y') }}
+                                <i class="fa-regular fa-clock text-[8px] mr-0.5"></i>Avant le {{ $step->due_at->format('d/m/Y') }}
+                            </span>
+                            @elseif($step->isPending() && $step->due_days)
+                            <span class="text-[9px] font-bold text-slate-400 bg-slate-50 px-2 py-1 rounded-lg" title="Le délai commencera quand l'étape deviendra active">
+                                <i class="fa-regular fa-clock text-[8px] mr-0.5"></i>{{ $step->due_days }} j
+                            </span>
+                            @endif
+                            @if($step->reminders_sent)
+                            <span class="text-[9px] font-bold text-amber-600 bg-amber-50 px-2 py-1 rounded-lg" title="Dernière relance : {{ $step->last_reminded_at?->format('d/m/Y H:i') }}">
+                                <i class="fa-solid fa-bell text-[8px] mr-0.5"></i>{{ $step->reminders_sent }} relance(s)
                             </span>
                             @endif
                             <span class="px-2.5 py-1 rounded-lg text-[9px] font-black uppercase tracking-wider
                                 {{ $step->status === 'approved' ? 'bg-emerald-50 text-emerald-600 ring-1 ring-emerald-200' :
                                    ($step->status === 'rejected' ? 'bg-red-50 text-red-600 ring-1 ring-red-200' :
                                    'bg-amber-50 text-amber-600 ring-1 ring-amber-200') }}">
-                                {{ $step->status === 'approved' ? 'Validé' : ($step->status === 'rejected' ? 'Rejeté' : 'En attente') }}
+                                {{ match($step->status) { 'approved' => 'Validé', 'rejected' => 'Rejeté', 'skipped' => 'Annulé', default => 'En attente' } }}
                             </span>
                         </div>
                     </div>
@@ -196,14 +238,45 @@
                     <p class="text-[9px] text-slate-400 mt-1.5">
                         <i class="fa-regular fa-calendar-check text-[8px] mr-1"></i>
                         Le {{ $step->decided_at->format('d/m/Y à H:i') }}
+                        @if($step->document_version)
+                        · sur la version {{ $step->document_version }}
+                        <span class="font-mono" title="Empreinte SHA-256 du fichier décidé : {{ $step->document_checksum }}">({{ \Illuminate\Support\Str::limit($step->document_checksum, 10, '…') }})</span>
+                        @endif
                     </p>
                     @endif
+                    @if($step->forcedBy)
+                    <div class="mt-2 flex items-start gap-2 bg-red-50 ring-1 ring-red-100 rounded-xl px-3 py-2.5">
+                        <i class="fa-solid fa-user-shield text-red-400 text-[10px] mt-0.5 shrink-0"></i>
+                        <p class="text-xs text-red-700"><strong>Décidé par {{ $step->forcedBy->full_name }}</strong> (administrateur) à la place de l'approbateur — motif : {{ $step->force_reason }}</p>
+                    </div>
+                    @endif
 
-                    @if($step->isPending() && ($step->approver_id === auth()->id() || auth()->user()->hasRole('admin')))
-                    <div class="mt-3 space-y-2">
+                    @if($currentStep?->id === $step->id && $canConfigure && $step->approver_id !== auth()->id())
+                    <form action="{{ route('documents.approval.remind', [$document, $step]) }}" method="POST" class="mt-2">
+                        @csrf
+                        <button type="submit" class="inline-flex items-center gap-1.5 text-[10px] font-black uppercase tracking-wider text-amber-700 bg-amber-50 hover:bg-amber-100 px-3 py-1.5 rounded-lg transition-all">
+                            <i class="fa-solid fa-bell text-[9px]"></i> Relancer {{ \Illuminate\Support\Str::before($step->approver->full_name, ' ') }}
+                        </button>
+                    </form>
+                    @endif
+
+                    @php
+                        $isApprover = $step->approver_id === auth()->id() || $step->delegated_from_id === auth()->id();
+                        $forcing = !$isApprover && auth()->user()->hasRole('admin') && $document->creator_id !== auth()->id();
+                    @endphp
+                    @if($currentStep?->id === $step->id && $document->status === 'review' && ($isApprover || $forcing))
+                    <div class="mt-3 space-y-2" @if($forcing) x-data="{ forceReason: '' }" @endif>
+                        @if($forcing)
+                        <div class="bg-red-50 ring-1 ring-red-100 rounded-xl px-3 py-2.5">
+                            <p class="text-[10px] font-bold text-red-700 mb-1.5"><i class="fa-solid fa-user-shield mr-1"></i>Vous n'êtes pas l'approbateur : votre décision sera inscrite au journal comme un forçage administrateur, et {{ $step->approver->full_name }} sera prévenu·e.</p>
+                            <input type="text" x-model="forceReason" placeholder="Motif du forçage (obligatoire)"
+                                   class="w-full bg-white border border-red-200 rounded-lg px-3 py-1.5 text-xs text-slate-700 focus:outline-none focus:ring-2 focus:ring-red-500">
+                        </div>
+                        @endif
                         <div class="flex gap-2 flex-wrap">
                             <form action="{{ route('documents.approval.approve', [$document, $step]) }}" method="POST">
                                 @csrf
+                                @if($forcing)<input type="hidden" name="force_reason" :value="forceReason">@endif
                                 <button type="submit"
                                     class="inline-flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-500 active:scale-95 text-white text-[10px] font-black uppercase tracking-widest px-4 py-2 rounded-xl shadow-md shadow-emerald-200 transition-all">
                                     <i class="fa-solid fa-check text-[9px]"></i> Valider
@@ -217,6 +290,7 @@
                         <div x-show="showReject" x-cloak x-transition>
                             <form action="{{ route('documents.approval.reject', [$document, $step]) }}" method="POST" class="flex gap-2">
                                 @csrf
+                                @if($forcing)<input type="hidden" name="force_reason" :value="forceReason">@endif
                                 <input type="text" name="reason" required placeholder="Raison du refus..."
                                        class="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-medium text-slate-700 placeholder-slate-300 focus:outline-none focus:ring-2 focus:ring-red-500 transition-all">
                                 <button type="submit"
@@ -236,7 +310,7 @@
 </div>
 
 {{-- ── MODAL CONFIGURATION ── --}}
-@if($canConfigure)
+@if($canLaunch)
 <div x-show="modal" x-cloak
      class="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4"
      x-transition:enter="transition ease-out duration-200"
@@ -281,7 +355,35 @@
         <form action="{{ route('documents.approval.setup', $document) }}" method="POST" class="flex flex-col flex-1 overflow-hidden">
             @csrf
 
+            <input type="hidden" name="template_id" :value="templateId">
             <div class="flex-1 overflow-y-auto">
+
+                {{-- Modèles de circuit --}}
+                <div x-show="templates.length" class="px-6 pt-5">
+                    <p class="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-2">Partir d'un circuit</p>
+                    <div class="space-y-1.5">
+                        <template x-for="template in templates" :key="template.id">
+                            <button type="button" @click="template.steps.length && applyTemplate(template)"
+                                    :class="templateId === template.id ? 'border-orange-300 bg-orange-50' : 'border-slate-100 hover:border-orange-200 bg-white'"
+                                    class="w-full text-left border rounded-xl px-3 py-2.5 transition-all">
+                                <div class="flex items-center gap-2">
+                                    <i class="fa-solid fa-diagram-next text-orange-400 text-xs"></i>
+                                    <span class="text-xs font-black text-slate-800 flex-1" x-text="template.name"></span>
+                                    <span x-show="template.id === suggestedTemplateId" class="text-[8px] font-black uppercase tracking-wider text-emerald-700 bg-emerald-50 rounded px-1.5 py-0.5">Suggéré</span>
+                                </div>
+                                <p class="text-[10px] text-slate-500 mt-1">
+                                    <template x-for="(step, i) in template.steps" :key="i">
+                                        <span><span x-show="i > 0"> → </span><span x-text="step.name"></span><span x-show="step.due_days" class="text-slate-400" x-text="' (' + step.due_days + ' j)'"></span></span>
+                                    </template>
+                                </p>
+                                <template x-for="error in template.errors" :key="error">
+                                    <p class="text-[10px] text-red-600 mt-0.5"><i class="fa-solid fa-circle-exclamation mr-1"></i><span x-text="error"></span></p>
+                                </template>
+                            </button>
+                        </template>
+                    </div>
+                    <p class="text-[10px] text-slate-400 mt-2">Ou composez le circuit vous-même ci-dessous.</p>
+                </div>
 
                 {{-- Ordre sélectionné --}}
                 <div x-show="selected.length > 0" class="px-6 pt-5 pb-3">
@@ -307,6 +409,11 @@
                                         class="w-6 h-6 flex items-center justify-center rounded-lg text-red-300 hover:bg-red-50 hover:text-red-500 transition-all">
                                         <i class="fa-solid fa-xmark text-[9px]"></i>
                                     </button>
+                                </div>
+                                <div class="relative w-16 shrink-0" title="Délai de cette étape">
+                                    <input type="number" min="1" max="365" name="step_due_days[]" x-model="dues[id]" :placeholder="dueDays || '—'"
+                                           class="w-full bg-white border border-orange-100 rounded-lg pl-2 pr-5 py-1 text-[11px] font-bold text-slate-700 focus:outline-none focus:ring-2 focus:ring-orange-500">
+                                    <span class="absolute right-1.5 top-1/2 -translate-y-1/2 text-[9px] font-bold text-slate-400">j</span>
                                 </div>
                                 {{-- Hidden input pour le form --}}
                                 <input type="hidden" name="approvers[]" :value="id">
@@ -338,6 +445,11 @@
                             <div class="flex-1 min-w-0">
                                 <p class="text-xs font-bold text-slate-800 truncate">{{ $user->full_name }}</p>
                                 <p class="text-[9px] text-slate-400 truncate">{{ $user->email }}</p>
+                                @if($user->isAbsent())
+                                <p class="text-[9px] font-bold text-purple-600 truncate">
+                                    Absent·e jusqu'au {{ $user->absent_until->format('d/m') }}{{ $user->delegate ? ' — remplacé·e par ' . $user->delegate->full_name : ' — aucun suppléant' }}
+                                </p>
+                                @endif
                             </div>
                             <div :class="isSelected({{ $user->id }}) ? 'bg-orange-500 text-white' : 'bg-slate-100 text-slate-300'"
                                  class="w-5 h-5 rounded-full flex items-center justify-center shrink-0 transition-all">
@@ -352,7 +464,7 @@
                 <div class="px-6 pb-5">
                     <div class="border-t border-slate-100 pt-4">
                         <label class="block text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1.5">
-                            Délai de réponse <span class="text-slate-300 font-normal normal-case">(optionnel)</span>
+                            Délai par défaut de chaque étape <span class="text-slate-300 font-normal normal-case">(optionnel, compté à partir de l'activation de l'étape)</span>
                         </label>
                         <div class="relative">
                             <input type="number" name="due_days" x-model="dueDays" min="1" max="365" placeholder="Ex: 7"
@@ -378,10 +490,16 @@
                         <span x-show="selected.length > 0" class="bg-white/20 text-[9px] font-black px-1.5 py-0.5 rounded-md" x-text="selected.length + ' validateur' + (selected.length > 1 ? 's' : '')"></span>
                     </button>
                 </div>
+                @if($rule['approval'])
+                <p class="text-center text-[10px] text-red-600 font-bold py-0.5">
+                    <i class="fa-solid fa-lock text-[9px] mr-1"></i> Approbation obligatoire pour cette catégorie
+                </p>
+                @else
                 <a href="{{ route('documents.show', $document) }}"
                    class="block text-center text-[10px] text-slate-400 hover:text-slate-600 font-bold transition-colors py-0.5">
                     <i class="fa-solid fa-forward-step text-[9px] mr-1"></i> Ignorer pour l'instant
                 </a>
+                @endif
             </div>
         </form>
     </div>

@@ -3,7 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Nouveau mot de passe — Groupe Bama GED</title>
+    <title>Nouveau mot de passe — {{ config('saas.platform_name') }}</title>
+    <x-favicons />
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700;800;900&display=swap" rel="stylesheet">
@@ -48,6 +49,7 @@
 
         {{-- Header --}}
         <div class="text-center mb-8 fade-up d1">
+            <x-logo class="w-14 h-14 mx-auto mb-6" />
             <div class="w-16 h-16 bg-slate-900 rounded-2xl flex items-center justify-center mx-auto mb-5 shadow-xl shadow-slate-200">
                 <i class="fa-solid fa-lock-open text-orange-500 text-2xl"></i>
             </div>

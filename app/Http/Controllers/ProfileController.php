@@ -11,8 +11,40 @@ class ProfileController extends Controller
 {
     public function show()
     {
-        $user = auth()->user()->load('roles', 'loginHistories');
-        return view('profile.show', compact('user'));
+        $user = auth()->user()->load('roles', 'loginHistories', 'delegate');
+        $colleagues = \App\Models\User::where('id', '!=', $user->id)->where('is_active', true)->orderBy('full_name')->get(['id', 'full_name']);
+        return view('profile.show', compact('user', 'colleagues'));
+    }
+
+    // Absence : pendant la période, les validations sont confiées au suppléant
+    public function updateAbsence(Request $request)
+    {
+        $user = auth()->user();
+
+        if ($request->boolean('clear')) {
+            $user->update(['absent_from' => null, 'absent_until' => null, 'delegate_id' => null]);
+            return redirect()->route('profile.show')->with('success', 'Absence supprimée : les validations vous sont de nouveau adressées.');
+        }
+
+        $data = $request->validate([
+            'absent_from'  => 'required|date',
+            'absent_until' => 'required|date|after_or_equal:absent_from|after_or_equal:today',
+            'delegate_id'  => ['required', \App\Support\Tenant::exists('users'), \Illuminate\Validation\Rule::notIn([$user->id])],
+        ], [
+            'absent_until.after_or_equal' => 'La date de retour doit être postérieure au début de l\'absence et à aujourd\'hui.',
+            'delegate_id.required'        => 'Choisissez la personne qui validera à votre place.',
+            'delegate_id.not_in'          => 'Vous ne pouvez pas être votre propre suppléant.',
+        ]);
+
+        $user->update($data);
+        $reassigned = app(\App\Services\ApprovalWorkflow::class)->reassignAbsent($user->fresh());
+
+        $message = 'Absence enregistrée du ' . $user->absent_from->format('d/m/Y') . ' au ' . $user->absent_until->format('d/m/Y') . '.';
+        if ($reassigned) {
+            $message .= " {$reassigned} validation(s) en cours confiée(s) à {$user->delegate->full_name}.";
+        }
+
+        return redirect()->route('profile.show')->with('success', $message);
     }
 
     public function update(Request $request)

@@ -2,6 +2,8 @@
 
 namespace App\Http\Controllers;
 
+use App\Support\Tenant;
+use Illuminate\Validation\Rule;
 use App\Models\Document;
 use App\Models\DocumentComment;
 use App\Services\NotificationService;
@@ -17,7 +19,7 @@ class DocumentCommentController extends Controller
 
         $data = $request->validate([
             'content'     => 'required|string|max:2000',
-            'parent_id'   => 'nullable|exists:document_comments,id',
+            'parent_id'   => ['nullable', Rule::exists('document_comments', 'id')->where('document_id', $document->id)],
             'type'        => 'nullable|in:comment,annotation',
             'is_internal' => 'nullable|boolean',
         ]);

@@ -19,7 +19,14 @@ class PasswordResetController extends Controller
 
     public function sendReset(Request $request)
     {
-        $request->validate(['email' => 'required|email|exists:users,email']);
+        $request->validate(['email' => 'required|email']);
+
+        $user = User::where('email', $request->email)->first();
+
+        // Même réponse que l'email existe ou non (pas d'énumération des comptes)
+        if (!$user) {
+            return back()->with('success', 'Si cet email existe, un lien de réinitialisation a été envoyé.');
+        }
 
         $token = Str::random(64);
 
@@ -29,7 +36,6 @@ class PasswordResetController extends Controller
             'created_at' => now(),
         ], ['email']);
 
-        $user     = User::where('email', $request->email)->first();
         $resetUrl = url('/reset-password/' . $token . '?email=' . urlencode($request->email));
 
         $this->sendResetEmail($user, $resetUrl);
@@ -41,7 +47,7 @@ class PasswordResetController extends Controller
     {
         try {
             // Charger les settings SMTP depuis la DB
-            $settings = DB::table('settings')->pluck('value', 'key')->toArray();
+            $settings = appSettings($user->organization_id);
 
             $mailEnabled = ($settings['mail_enabled'] ?? '0') === '1'
                 && !empty($settings['mail_host'] ?? '');
@@ -59,7 +65,7 @@ class PasswordResetController extends Controller
                 'mail.mailers.smtp.password'   => $settings['mail_password'] ?? '',
                 'mail.mailers.smtp.encryption' => $settings['mail_encryption'] ?? 'tls',
                 'mail.from.address'            => $settings['mail_from_address'] ?? $settings['mail_username'] ?? '',
-                'mail.from.name'               => $settings['mail_from_name'] ?? 'Groupe Bama GED',
+                'mail.from.name'               => $settings['mail_from_name'] ?? ($user->organization?->name ?? config('saas.platform_name')),
             ]);
 
             Mail::send('emails.password-reset', [
@@ -73,6 +79,8 @@ class PasswordResetController extends Controller
 
         } catch (\Exception $e) {
             Log::warning('GED password reset email failed: ' . $e->getMessage());
+            \App\Models\SystemEvent::record('warning', 'mail', 'Email de réinitialisation non envoyé : ' . $e->getMessage(),
+                ['to' => $user->email ?? null], $user->organization_id ?? null, hash('sha256', 'mail|reset|' . get_class($e)));
         }
     }
 
@@ -87,7 +95,7 @@ class PasswordResetController extends Controller
     public function reset(Request $request)
     {
         $request->validate([
-            'email'    => 'required|email|exists:users,email',
+            'email'    => 'required|email',
             'token'    => 'required|string',
             'password' => 'required|string|min:8|confirmed',
         ]);
@@ -101,14 +109,19 @@ class PasswordResetController extends Controller
         }
 
         // Expiration 60 min
-        if (now()->diffInMinutes($record->created_at) > 60) {
+        if (\Carbon\Carbon::parse($record->created_at)->addMinutes(60)->isPast()) {
             DB::table('password_reset_tokens')->where('email', $request->email)->delete();
             return back()->withErrors(['token' => 'Ce lien a expiré. Faites une nouvelle demande.']);
         }
 
         User::where('email', $request->email)->update([
-            'password' => Hash::make($request->password),
+            'password'       => Hash::make($request->password),
+            'remember_token' => Str::random(60),
         ]);
+
+        // Déconnecter toutes les sessions ouvertes de ce compte
+        $userId = User::where('email', $request->email)->value('id');
+        DB::table('sessions')->where('user_id', $userId)->delete();
 
         DB::table('password_reset_tokens')->where('email', $request->email)->delete();
 

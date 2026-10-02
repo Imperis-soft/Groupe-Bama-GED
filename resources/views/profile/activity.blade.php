@@ -130,7 +130,7 @@
                     <a href="{{ route('documents.show', $log->document) }}"
                        class="flex items-center gap-2.5 group/doc">
                         <div class="w-7 h-7 rounded-lg bg-orange-50 flex items-center justify-center shrink-0 group-hover/doc:bg-orange-600 transition-colors">
-                            <i class="fa-solid fa-file-word text-orange-500 text-[9px] group-hover/doc:text-white transition-colors"></i>
+                            <x-file-icon :document="$log->document" class="text-[9px] group-hover/doc:text-white transition-colors" />
                         </div>
                         <div class="min-w-0">
                             <p class="text-xs font-bold text-slate-800 group-hover/doc:text-orange-600 transition-colors truncate leading-tight">
@@ -140,7 +140,11 @@
                         </div>
                     </a>
                     @else
-                    <span class="text-xs text-slate-300 font-medium">Document supprimé</span>
+                    {{-- Document à la corbeille ou détruit : la trace reste lisible --}}
+                    <div class="min-w-0">
+                        <p class="text-xs font-bold text-slate-400 truncate leading-tight">{{ $log->document_title ?? 'Document supprimé' }}</p>
+                        <p class="text-[9px] font-mono text-slate-300 mt-0.5">{{ $log->document_reference }} · supprimé</p>
+                    </div>
                     @endif
                 </div>
 
@@ -197,11 +201,13 @@
                         @if($log->document)
                         <a href="{{ route('documents.show', $log->document) }}"
                            class="flex items-center gap-1.5 mt-1.5 group/doc">
-                            <i class="fa-solid fa-file-word text-orange-400 text-[9px] shrink-0"></i>
+                            <x-file-icon :document="$log->document" class="text-[9px] shrink-0" />
                             <span class="text-xs font-semibold text-slate-700 group-hover/doc:text-orange-600 transition-colors truncate">
                                 {{ $log->document->title }}
                             </span>
                         </a>
+                        @elseif($log->document_title)
+                        <p class="text-xs font-semibold text-slate-400 mt-1.5 truncate">{{ $log->document_title }} <span class="font-mono text-[9px]">({{ $log->document_reference }}, supprimé)</span></p>
                         @endif
 
                         @if($log->description)

@@ -36,7 +36,7 @@
                     <div class="relative">
                         <i class="fa-solid fa-magnifying-glass absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-300 text-xs"></i>
                         <input type="text" x-model="searchQuery"
-                               placeholder="Titre, référence, contenu..."
+                               placeholder="Titre, référence, contenu… &quot;expression exacte&quot;"
                                @keydown.enter.prevent="performSearch"
                                class="w-full bg-slate-50 border border-slate-100 rounded-xl pl-9 pr-4 py-2.5 text-xs font-medium text-slate-700 placeholder-slate-300 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent transition-all">
                     </div>
@@ -137,8 +137,16 @@
             <div class="flex items-center gap-2">
                 <span class="w-2 h-2 rounded-full bg-slate-400"></span>
                 <p class="text-xs font-black text-slate-700 uppercase tracking-widest">
-                    <span x-text="results.length"></span> résultat<span x-show="results.length > 1">s</span>
+                    <span x-text="total"></span> résultat<span x-show="total > 1">s</span>
                 </p>
+                <select x-model="sort" @change="performSearch()" x-show="total > 0"
+                        class="ml-2 bg-white border border-slate-200 rounded-lg px-2 py-1 text-[11px] font-bold text-slate-600 focus:outline-none focus:ring-2 focus:ring-orange-500">
+                    <option value="relevance" x-show="searchQuery.trim()">Pertinence</option>
+                    <option value="recent">Plus récents</option>
+                    <option value="oldest">Plus anciens</option>
+                    <option value="updated">Modifiés récemment</option>
+                    <option value="title">Titre (A→Z)</option>
+                </select>
             </div>
             <div x-show="results.length > 0" class="flex bg-white border border-slate-200 rounded-xl p-1 gap-0.5">
                 <button @click="viewMode = 'list'"
@@ -188,11 +196,19 @@
                             </div>
                             <div class="col-span-4 flex items-center gap-3 min-w-0">
                                 <div class="w-8 h-8 rounded-lg bg-orange-50 flex items-center justify-center shrink-0 group-hover:bg-orange-600 transition-colors">
-                                    <i class="fa-solid fa-file-word text-orange-500 text-xs group-hover:text-white transition-colors"></i>
+                                    <i class="fa-solid text-xs group-hover:text-white transition-colors" :class="fileIcon(doc.file_path)"></i>
                                 </div>
-                                <a :href="'/documents/' + doc.id"
-                                   class="text-sm font-bold text-slate-800 hover:text-orange-600 truncate transition-colors"
-                                   x-text="doc.title"></a>
+                                <div class="min-w-0">
+                                    <a :href="doc.url" class="text-sm font-bold text-slate-800 hover:text-orange-600 truncate transition-colors block">
+                                        <template x-for="(seg, i) in doc.title_segments" :key="i"><span :class="seg.hit && 'bg-amber-100 text-slate-900 rounded-sm px-0.5'" x-text="seg.text"></span></template>
+                                    </a>
+                                    <p x-show="doc.snippet" class="text-[11px] text-slate-500 leading-snug mt-0.5 line-clamp-2">
+                                        <template x-for="(seg, i) in (doc.snippet || [])" :key="i"><span :class="seg.hit && 'bg-amber-100 text-slate-900 rounded-sm px-0.5 font-semibold'" x-text="seg.text"></span></template>
+                                    </p>
+                                    <p class="text-[10px] text-slate-400 mt-0.5">
+                                        <span x-text="doc.creator?.full_name || '—'"></span> · <span x-text="formatDate(doc.created_at)"></span>
+                                    </p>
+                                </div>
                             </div>
                             <div class="col-span-2">
                                 <span class="px-2.5 py-1 bg-slate-100 text-slate-500 rounded-lg text-[9px] font-bold"
@@ -209,11 +225,11 @@
                                       x-text="getStatusLabel(doc.status)"></span>
                             </div>
                             <div class="col-span-2 flex items-center justify-end gap-1">
-                                <a :href="'/documents/' + doc.id"
+                                <a :href="doc.url"
                                    class="inline-flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 hover:bg-orange-600 hover:text-white text-slate-600 rounded-lg text-[9px] font-black uppercase tracking-wider transition-all">
                                     <i class="fa-solid fa-eye text-[8px]"></i> Voir
                                 </a>
-                                <a :href="'/documents/' + doc.id + '/edit'"
+                                <a :href="doc.edit_url" x-show="doc.can_edit"
                                    class="w-7 h-7 flex items-center justify-center rounded-lg text-slate-400 hover:bg-orange-50 hover:text-orange-600 transition-all">
                                     <i class="fa-solid fa-pen text-[10px]"></i>
                                 </a>
@@ -223,12 +239,15 @@
                         {{-- Mobile --}}
                         <div class="md:hidden flex items-start gap-3">
                             <div class="w-9 h-9 rounded-xl bg-orange-50 flex items-center justify-center shrink-0">
-                                <i class="fa-solid fa-file-word text-orange-500 text-sm"></i>
+                                <i class="fa-solid text-sm" :class="fileIcon(doc.file_path)"></i>
                             </div>
                             <div class="flex-1 min-w-0">
-                                <a :href="'/documents/' + doc.id"
-                                   class="text-sm font-bold text-slate-800 hover:text-orange-600 block truncate"
-                                   x-text="doc.title"></a>
+                                <a :href="doc.url" class="text-sm font-bold text-slate-800 hover:text-orange-600 block truncate">
+                                    <template x-for="(seg, i) in doc.title_segments" :key="i"><span :class="seg.hit && 'bg-amber-100 rounded-sm'" x-text="seg.text"></span></template>
+                                </a>
+                                <p x-show="doc.snippet" class="text-[11px] text-slate-500 leading-snug mt-0.5 line-clamp-2">
+                                    <template x-for="(seg, i) in (doc.snippet || [])" :key="i"><span :class="seg.hit && 'bg-amber-100 text-slate-900 rounded-sm font-semibold'" x-text="seg.text"></span></template>
+                                </p>
                                 <div class="flex items-center gap-2 mt-1 flex-wrap">
                                     <span class="font-mono text-[9px] text-slate-400" x-text="doc.reference"></span>
                                     <span class="text-slate-200">•</span>
@@ -242,7 +261,7 @@
                                           x-text="getStatusLabel(doc.status)"></span>
                                 </div>
                             </div>
-                            <a :href="'/documents/' + doc.id"
+                            <a :href="doc.url"
                                class="w-8 h-8 flex items-center justify-center rounded-lg bg-slate-100 hover:bg-orange-600 hover:text-white text-slate-500 transition-all shrink-0">
                                 <i class="fa-solid fa-chevron-right text-xs"></i>
                             </a>
@@ -259,7 +278,7 @@
             <template x-for="doc in results" :key="doc.id">
                 <div class="bg-white rounded-2xl border border-slate-100 shadow-sm hover:shadow-md hover:border-orange-200 transition-all group overflow-hidden">
                     <div class="aspect-square bg-slate-50 flex items-center justify-center group-hover:bg-orange-50 transition-colors relative">
-                        <i class="fa-solid fa-file-word text-4xl text-slate-200 group-hover:text-orange-400 transition-colors"></i>
+                        <i class="fa-solid text-4xl opacity-40 group-hover:opacity-100 transition-opacity" :class="fileIcon(doc.file_path)"></i>
                         <template x-if="doc.is_confidential">
                             <span class="absolute top-2 right-2 w-5 h-5 bg-red-100 rounded-full flex items-center justify-center">
                                 <i class="fa-solid fa-lock text-red-500 text-[8px]"></i>
@@ -267,7 +286,7 @@
                         </template>
                     </div>
                     <div class="p-3">
-                        <a :href="'/documents/' + doc.id"
+                        <a :href="doc.url"
                            class="text-[11px] font-black text-slate-800 hover:text-orange-600 block truncate leading-tight transition-colors"
                            x-text="doc.title"></a>
                         <p class="text-[9px] text-slate-400 font-mono mt-0.5 truncate" x-text="doc.reference"></p>
@@ -280,7 +299,7 @@
                                       'bg-slate-100 text-slate-400': doc.status === 'archived'
                                   }"
                                   x-text="getStatusLabel(doc.status)"></span>
-                            <a :href="'/documents/' + doc.id"
+                            <a :href="doc.url"
                                class="w-7 h-7 flex items-center justify-center rounded-lg bg-slate-100 hover:bg-orange-600 hover:text-white text-slate-500 transition-all">
                                 <i class="fa-solid fa-arrow-right text-[9px]"></i>
                             </a>
@@ -290,12 +309,22 @@
             </template>
         </div>
 
+        <div x-show="page < lastPage" class="flex justify-center mt-4">
+            <button @click="loadMore()" :disabled="loadingMore"
+                class="inline-flex items-center gap-2 bg-white border border-slate-200 hover:bg-slate-50 text-slate-600 text-xs font-bold px-5 py-2.5 rounded-xl shadow-sm transition-all disabled:opacity-60">
+                <i class="fa-solid text-[10px]" :class="loadingMore ? 'fa-spinner fa-spin' : 'fa-chevron-down'"></i>
+                Afficher plus (<span x-text="total - results.length"></span> restants)
+            </button>
+        </div>
+
     </div>
 
 </div>
 
 <script>
 function advancedSearch() {
+    const FIELDS = { searchQuery: 'q', selectedCategory: 'category', selectedStatus: 'status', selectedCreator: 'creator',
+                     isConfidential: 'confidential', dateFrom: 'date_from', dateTo: 'date_to', selectedTags: 'tags', sort: 'sort' };
     return {
         searchQuery:     '',
         selectedCategory: '',
@@ -305,65 +334,93 @@ function advancedSearch() {
         dateFrom:        '',
         dateTo:          '',
         selectedTags:    '',
+        sort:            '',
         results:         [],
+        total:           0,
+        page:            1,
+        lastPage:        1,
         loading:         false,
+        loadingMore:     false,
         searchPerformed: false,
         viewMode:        localStorage.getItem('searchViewMode') || 'list',
 
         init() {
             this.$watch('viewMode', v => localStorage.setItem('searchViewMode', v));
+            // Recherche partagée par lien (ou venant de la palette Ctrl+K)
+            const params = new URLSearchParams(location.search);
+            Object.entries(FIELDS).forEach(([field, param]) => { if (params.has(param)) this[field] = params.get(param); });
+            if ([...params.keys()].some(k => Object.values(FIELDS).includes(k))) this.performSearch();
+        },
+
+        params(page = 1) {
+            const params = new URLSearchParams();
+            Object.entries(FIELDS).forEach(([field, param]) => {
+                const value = String(this[field] ?? '').trim();
+                if (value !== '') params.append(param, value);
+            });
+            if (page > 1) params.append('page', page);
+            return params;
+        },
+
+        async fetchPage(page) {
+            const res = await fetch('{{ route('documents.api.search') }}?' + this.params(page).toString(), {
+                headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' }
+            });
+            if (!res.ok) throw new Error('HTTP ' + res.status);
+            return res.json();
         },
 
         async performSearch() {
             this.loading         = true;
             this.searchPerformed = false;
-            this.results         = [];
-
-            const params = new URLSearchParams();
-            if (this.searchQuery)      params.append('q',            this.searchQuery);
-            if (this.selectedCategory) params.append('category',     this.selectedCategory);
-            if (this.selectedStatus)   params.append('status',       this.selectedStatus);
-            if (this.selectedCreator)  params.append('creator',      this.selectedCreator);
-            if (this.isConfidential !== '') params.append('confidential', this.isConfidential);
-            if (this.dateFrom)         params.append('date_from',    this.dateFrom);
-            if (this.dateTo)           params.append('date_to',      this.dateTo);
-            if (this.selectedTags)     params.append('tags',         this.selectedTags);
+            // Le tri « pertinence » n'a de sens qu'avec des mots-clés
+            if (this.sort === 'relevance' && !this.searchQuery.trim()) this.sort = '';
+            history.replaceState(null, '', location.pathname + (this.params().toString() ? '?' + this.params().toString() : ''));
 
             try {
-                const res  = await fetch('/api/documents/search?' + params.toString(), {
-                    headers: {
-                        'Accept': 'application/json',
-                        'X-Requested-With': 'XMLHttpRequest',
-                        'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.content || ''
-                    }
-                });
-                const data = await res.json();
-                this.results = data.data || [];
+                const data   = await this.fetchPage(1);
+                this.results  = data.data || [];
+                this.total    = data.total || 0;
+                this.page     = data.current_page || 1;
+                this.lastPage = data.last_page || 1;
+                this.sort     = data.sort || this.sort;
             } catch (err) {
                 console.error('Erreur recherche:', err);
                 this.results = [];
+                this.total   = 0;
             } finally {
                 this.loading         = false;
                 this.searchPerformed = true;
             }
         },
 
+        async loadMore() {
+            this.loadingMore = true;
+            try {
+                const data = await this.fetchPage(this.page + 1);
+                this.results.push(...(data.data || []));
+                this.page     = data.current_page;
+                this.lastPage = data.last_page;
+            } finally {
+                this.loadingMore = false;
+            }
+        },
+
         resetFilters() {
-            this.searchQuery      = '';
-            this.selectedCategory = '';
-            this.selectedStatus   = '';
-            this.selectedCreator  = '';
-            this.isConfidential   = '';
-            this.dateFrom         = '';
-            this.dateTo           = '';
-            this.selectedTags     = '';
+            Object.keys(FIELDS).forEach(field => this[field] = '');
             this.results          = [];
+            this.total            = 0;
             this.searchPerformed  = false;
+            history.replaceState(null, '', location.pathname);
         },
 
         getStatusLabel(status) {
             const labels = { draft: 'Brouillon', review: 'Révision', approved: 'Approuvé', archived: 'Archivé' };
             return labels[status] || status;
+        },
+
+        formatDate(iso) {
+            return iso ? new Date(iso).toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' }) : '';
         },
 
         toggleView(mode) { this.viewMode = mode; }

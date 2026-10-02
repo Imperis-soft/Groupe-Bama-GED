@@ -9,18 +9,53 @@
     $statusColors = [
         'approved' => 'bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200',
         'review'   => 'bg-blue-50 text-blue-700 ring-1 ring-blue-200',
+        'signing'  => 'bg-purple-50 text-purple-700 ring-1 ring-purple-200',
+        'signed'   => 'bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200',
         'archived' => 'bg-slate-100 text-slate-500 ring-1 ring-slate-200',
         'draft'    => 'bg-amber-50 text-amber-700 ring-1 ring-amber-200',
     ];
     $statusIcons = [
         'approved' => 'fa-circle-check',
         'review'   => 'fa-clock',
+        'signing'  => 'fa-signature',
+        'signed'   => 'fa-file-signature',
         'archived' => 'fa-box-archive',
         'draft'    => 'fa-pen-to-square',
     ];
     $sc = $statusColors[$document->status] ?? 'bg-slate-100 text-slate-500';
     $si = $statusIcons[$document->status] ?? 'fa-file';
+
+    // Action attendue de l'utilisateur sur ce document
+    $myStep = $document->approvalSteps->first(fn ($st) => $st->isPending() && $st->approver_id === auth()->id());
+    $myTurn = $myStep && !$document->approvalSteps->contains(fn ($st) => $st->isPending() && $st->step_order < $myStep->step_order);
+    $mySignatureRequest = $document->signatureRequests()->where('user_id', auth()->id())->where('status', 'pending')->with('requester')->first();
 @endphp
+
+@if($myTurn || $mySignatureRequest)
+<div class="mb-4 space-y-2">
+    @if($myTurn)
+    <a href="{{ route('documents.approval', $document) }}"
+       class="flex items-center gap-3 bg-blue-50 hover:bg-blue-100/70 border border-blue-100 rounded-2xl px-5 py-3 transition-colors">
+        <i class="fa-solid fa-list-check text-blue-500"></i>
+        <span class="flex-1 text-sm font-bold text-blue-900">
+            Votre approbation est attendue (étape {{ $myStep->step_order }}/{{ $document->approvalSteps->count() }})
+            @if($myStep->due_at)<span class="text-xs {{ $myStep->due_at->isPast() ? 'text-red-600' : 'text-blue-500' }}">· avant le {{ $myStep->due_at->format('d/m/Y') }}</span>@endif
+        </span>
+        <span class="text-[10px] font-black uppercase text-blue-600">Décider <i class="fa-solid fa-arrow-right text-[9px]"></i></span>
+    </a>
+    @endif
+    @if($mySignatureRequest)
+    <a href="{{ route('documents.signatures', $document) }}"
+       class="flex items-center gap-3 bg-purple-50 hover:bg-purple-100/70 border border-purple-100 rounded-2xl px-5 py-3 transition-colors">
+        <i class="fa-solid fa-signature text-purple-500"></i>
+        <span class="flex-1 text-sm font-bold text-purple-900">{{ $mySignatureRequest->requester?->full_name ?? 'Un collaborateur' }} vous demande de signer ce document</span>
+        <span class="text-[10px] font-black uppercase text-purple-600">Signer <i class="fa-solid fa-arrow-right text-[9px]"></i></span>
+    </a>
+    @endif
+</div>
+@endif
+
+<div class="mb-4">@include('documents._workflow-banner')</div>
 
 <div x-data="{
     tab: 'overview',
@@ -31,11 +66,11 @@
     sigModal: false,
     shareModal: false,
     archiveModal: false,
+    unarchiveModal: {{ $errors->has('reason') && old('_unarchive') ? 'true' : 'false' }},
     uploadModal: false,
     commentContent: '',
     replyTo: null,
     replyContent: '',
-    ooLoading: false,
 
     async toggleFav() {
         this.favLoading = true;
@@ -63,25 +98,6 @@
             headers: { 'X-CSRF-TOKEN': document.querySelector('meta[name=csrf-token]').content }
         });
         this.lockStatus = 'free';
-    },
-
-    async openOnlyOffice() {
-        this.ooLoading = true;
-        try {
-            const res = await fetch('{{ route('documents.edit-online', $document) }}', {
-                headers: { 'Accept': 'application/json' }
-            });
-            const data = await res.json();
-            if (data.error) {
-                alert('Erreur : ' + data.error);
-            } else {
-                window.open(data.editUrl, '_blank', 'width=1400,height=900');
-            }
-        } catch (err) {
-            alert('Impossible d\'ouvrir l\'éditeur : ' + err.message);
-        } finally {
-            this.ooLoading = false;
-        }
     }
 }">
 
@@ -110,7 +126,7 @@
         <div class="flex items-start gap-3 sm:gap-4">
             <div class="relative shrink-0">
                 <div class="w-12 h-12 sm:w-14 sm:h-14 rounded-2xl bg-gradient-to-br from-orange-50 to-orange-100 flex items-center justify-center shadow-sm">
-                    <i class="fa-solid fa-file-word text-orange-500 text-xl sm:text-2xl"></i>
+                    <x-file-icon :document="$document" class="text-xl sm:text-2xl" />
                 </div>
                 @if($document->is_confidential)
                 <div class="absolute -top-1.5 -right-1.5 w-5 h-5 bg-red-500 rounded-full flex items-center justify-center shadow">
@@ -141,8 +157,13 @@
                         <i class="fa-solid fa-code-branch text-[9px] mr-1"></i>v{{ $document->version }}
                     </span>
                     @if($document->category)
-                    <span class="text-[11px] text-slate-400 font-medium">
-                        <i class="fa-solid fa-folder text-[9px] mr-1 text-orange-400"></i>{{ $document->category->name }}
+                    @php $categoryPath = (new \App\Support\CategoryTree(withCounts: false))->path($document->category_id); @endphp
+                    <span class="text-[11px] text-slate-400 font-medium inline-flex items-center flex-wrap gap-1">
+                        <i class="fa-solid fa-folder text-[9px] text-orange-400"></i>
+                        @foreach($categoryPath ?: [$document->category] as $crumb)
+                        @if(!$loop->first)<i class="fa-solid fa-chevron-right text-[7px] text-slate-300"></i>@endif
+                        <a href="{{ route('documents.index', ['category' => $crumb->id]) }}" class="hover:text-orange-600">{{ $crumb->name }}</a>
+                        @endforeach
                     </span>
                     @endif
                     <span class="text-[11px] text-slate-400 font-medium">
@@ -214,21 +235,14 @@
                 <i class="fa-solid fa-pen text-[10px]"></i>
                 <span class="hidden sm:inline">Modifier</span>
             </a>
-            {{-- Bouton "Éditer en ligne" (OnlyOffice) — temporairement désactivé, service non disponible
-            <button
-                @click="openOnlyOffice()"
-                :disabled="ooLoading"
-                class="inline-flex items-center gap-2 bg-orange-600 hover:bg-orange-500 active:scale-95 disabled:opacity-60 text-white text-xs font-black px-3 py-2 rounded-xl transition-all shadow-lg shadow-orange-200 shrink-0">
-                <i class="fa-solid text-[10px]" :class="ooLoading ? 'fa-spinner fa-spin' : 'fa-pen-nib'"></i>
-                <span class="hidden sm:inline" x-text="ooLoading ? 'Ouverture...' : 'Éditer en ligne'"></span>
-            </button>
-            --}}
-            {{-- Nouvelle version --}}
+            {{-- Nouvelle version (contenu gelé pendant un circuit) --}}
+            @unless($document->isInWorkflow())
             <button @click="uploadModal = true"
                 class="inline-flex items-center gap-2 bg-white border border-slate-200 hover:bg-blue-50 hover:border-blue-300 text-slate-600 hover:text-blue-700 text-xs font-bold px-3 py-2 rounded-xl transition-all shadow-sm shrink-0">
                 <i class="fa-solid fa-upload text-[10px]"></i>
                 <span class="hidden sm:inline">Nouvelle version</span>
             </button>
+            @endunless
             @endif
 
             {{-- Menu contextuel --}}
@@ -260,11 +274,18 @@
                         <i class="fa-solid fa-clock-rotate-left w-4 text-slate-400"></i> Journal d'audit
                     </a>
                     <div class="border-t border-slate-100 my-1"></div>
+                    @if(!$document->isArchived() && $document->canManage())
                     <button @click="archiveModal = true; open = false"
                         class="w-full flex items-center gap-3 px-4 py-2.5 text-xs font-semibold text-amber-600 hover:bg-amber-50 transition-colors">
                         <i class="fa-solid fa-box-archive w-4"></i> Archiver
                     </button>
-                    @if(auth()->user()->hasRole('admin'))
+                    @elseif($document->isArchived() && auth()->user()->hasRole('admin'))
+                    <button @click="unarchiveModal = true; open = false"
+                        class="w-full flex items-center gap-3 px-4 py-2.5 text-xs font-semibold text-slate-600 hover:bg-slate-50 transition-colors">
+                        <i class="fa-solid fa-box-open w-4"></i> Désarchiver
+                    </button>
+                    @endif
+                    @if(auth()->user()->hasRole('admin') && !$document->isArchived())
                     <form action="{{ route('documents.destroy', $document) }}" method="POST"
                           onsubmit="return confirm('Supprimer ce document ?');">
                         @csrf @method('DELETE')
@@ -287,6 +308,77 @@
                 <p class="text-[10px] text-orange-600 mt-0.5">{{ $document->legal_hold_reason }} — Activé le {{ $document->legal_hold_at?->format('d/m/Y') }}</p>
             </div>
             <span class="px-2 py-1 bg-orange-100 text-orange-700 text-[9px] font-black uppercase rounded-lg shrink-0">Protégé</span>
+        </div>
+        @endif
+
+        {{-- Document archivé : figé --}}
+        @if($document->isArchived())
+        <div class="mt-4 mx-4 sm:mx-6 mb-4 flex items-start gap-3 bg-slate-100 border border-slate-200 rounded-xl px-4 py-3">
+            <i class="fa-solid fa-box-archive text-slate-500 text-sm shrink-0 mt-0.5"></i>
+            <div class="flex-1 min-w-0">
+                <p class="text-xs font-bold text-slate-800">Document archivé — lecture seule</p>
+                <p class="text-[10px] text-slate-500 mt-0.5">
+                    Archivé le {{ $document->archived_at?->format('d/m/Y à H:i') }}@if($document->archivedBy) par {{ $document->archivedBy->full_name }}@endif.
+                    @if($document->archive_reason) Motif : {{ $document->archive_reason }}.@endif
+                    Il ne peut plus être modifié, supprimé ni signé.
+                </p>
+                @if($document->checksum)
+                <p class="text-[9px] font-mono text-slate-400 mt-1 truncate" title="Empreinte SHA-256 figée à l'archivage">SHA-256 : {{ $document->checksum }}</p>
+                @endif
+            </div>
+            <span class="px-2 py-1 bg-white text-slate-600 text-[9px] font-black uppercase rounded-lg shrink-0 border border-slate-200">Figé</span>
+        </div>
+        @endif
+
+        {{-- Fenêtre : archiver --}}
+        <div x-show="archiveModal" x-cloak class="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm" @keydown.escape.window="archiveModal = false">
+            <form method="POST" action="{{ route('documents.archive', $document) }}" @click.outside="archiveModal = false"
+                  class="w-full max-w-md bg-white rounded-2xl shadow-2xl p-6 space-y-4">
+                @csrf
+                <div class="flex items-start gap-3">
+                    <span class="w-10 h-10 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center shrink-0"><i class="fa-solid fa-box-archive"></i></span>
+                    <div>
+                        <h3 class="text-sm font-black text-slate-900">Archiver « {{ Str::limit($document->title, 50) }} » ?</h3>
+                        <p class="text-xs text-slate-500 mt-1">Le document sera <span class="font-bold">figé</span> : plus de modification, de nouvelle version, de suppression ni de signature. Son empreinte est enregistrée. Seul un administrateur pourra le désarchiver.</p>
+                    </div>
+                </div>
+                <div>
+                    <label class="block text-[9px] font-black text-slate-500 uppercase tracking-widest mb-1.5">Motif (facultatif)</label>
+                    <input type="text" name="reason" maxlength="500" placeholder="Ex. : dossier clos, contrat terminé…"
+                           class="w-full bg-slate-50 border border-slate-100 rounded-xl px-4 py-2.5 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-orange-500">
+                </div>
+                <div class="flex justify-end gap-2">
+                    <button type="button" @click="archiveModal = false" class="px-4 py-2 rounded-xl text-xs font-bold text-slate-500 hover:bg-slate-100">Annuler</button>
+                    <button type="submit" class="px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-600 text-white text-xs font-black"><i class="fa-solid fa-box-archive mr-1"></i> Archiver</button>
+                </div>
+            </form>
+        </div>
+
+        {{-- Fenêtre : désarchiver (administrateur) --}}
+        @if($document->isArchived() && auth()->user()->hasRole('admin'))
+        <div x-show="unarchiveModal" x-cloak class="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm" @keydown.escape.window="unarchiveModal = false">
+            <form method="POST" action="{{ route('documents.unarchive', $document) }}" @click.outside="unarchiveModal = false"
+                  class="w-full max-w-md bg-white rounded-2xl shadow-2xl p-6 space-y-4">
+                @csrf
+                <input type="hidden" name="_unarchive" value="1">
+                <div class="flex items-start gap-3">
+                    <span class="w-10 h-10 rounded-xl bg-slate-100 text-slate-600 flex items-center justify-center shrink-0"><i class="fa-solid fa-box-open"></i></span>
+                    <div>
+                        <h3 class="text-sm font-black text-slate-900">Désarchiver ce document ?</h3>
+                        <p class="text-xs text-slate-500 mt-1">Il redeviendra modifiable (statut « {{ ['draft' => 'Brouillon', 'review' => 'En révision', 'approved' => 'Approuvé'][$document->status_before_archive ?? 'approved'] ?? $document->status_before_archive }} »). Le motif est conservé dans le journal d'audit.</p>
+                    </div>
+                </div>
+                <div>
+                    <label class="block text-[9px] font-black text-slate-500 uppercase tracking-widest mb-1.5">Motif <span class="text-red-500">*</span></label>
+                    <input type="text" name="reason" required minlength="5" maxlength="500" value="{{ old('reason') }}" placeholder="Ex. : avenant au contrat à intégrer"
+                           class="w-full bg-slate-50 border border-slate-100 rounded-xl px-4 py-2.5 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-orange-500">
+                    @error('reason') <p class="text-red-500 text-[10px] font-bold mt-1">{{ $message }}</p> @enderror
+                </div>
+                <div class="flex justify-end gap-2">
+                    <button type="button" @click="unarchiveModal = false" class="px-4 py-2 rounded-xl text-xs font-bold text-slate-500 hover:bg-slate-100">Annuler</button>
+                    <button type="submit" class="px-4 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-black"><i class="fa-solid fa-box-open mr-1"></i> Désarchiver</button>
+                </div>
+            </form>
         </div>
         @endif
 
@@ -378,7 +470,20 @@
                 <div><p class="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Version</p><p class="text-sm font-bold text-slate-800">{{ $document->version }}</p></div>
                 <div><p class="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Cree le</p><p class="text-sm font-bold text-slate-800">{{ $document->created_at->format('d/m/Y H:i') }}</p></div>
                 <div><p class="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Modifie le</p><p class="text-sm font-bold text-slate-800">{{ $document->updated_at->diffForHumans() }}</p></div>
-                @if($document->expires_at)<div><p class="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Expiration</p><p class="text-sm font-bold {{ $document->expires_at->isPast() ? 'text-red-600' : 'text-slate-800' }}">{{ $document->expires_at->format('d/m/Y') }}</p></div>@endif
+                @php
+                    $disposition = ['destroy' => 'puis élimination', 'review' => 'puis réexamen', 'keep' => 'puis conservation définitive'][$document->finalDisposition()] ?? '';
+                @endphp
+                <div><p class="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Conservation</p>
+                    <p class="text-sm font-bold text-slate-800">
+                        @if($document->retention_permanent) Définitive
+                        @elseif($document->retention_until) Jusqu'au {{ $document->retention_until->format('d/m/Y') }}
+                        @elseif($document->retention_years) {{ $document->retention_years }} an(s) <span class="text-[10px] font-medium text-slate-400">(délai pas encore commencé)</span>
+                        @else —
+                        @endif
+                    </p>
+                    @unless($document->retention_permanent)<p class="text-[10px] text-slate-400">{{ $disposition }}</p>@endunless
+                </div>
+                @if($document->expires_at)<div><p class="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Échéance</p><p class="text-sm font-bold {{ $document->expires_at->isPast() ? 'text-red-600' : 'text-slate-800' }}">{{ $document->expires_at->format('d/m/Y') }}@if($document->expires_at->isPast()) <span class="text-[10px] font-bold">· dépassée</span>@endif</p></div>@endif
                 @if($document->retention_years)<div><p class="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Retention</p><p class="text-sm font-bold text-slate-800">{{ $document->retention_years }} ans</p></div>@endif
             </div>
         </div>
@@ -404,15 +509,29 @@
             <h2 class="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3">Actions rapides</h2>
             <div class="space-y-2">
                 <a href="{{ route('documents.versions', $document) }}" class="flex items-center gap-3 w-full px-3 py-2.5 rounded-xl bg-slate-50 hover:bg-blue-50 hover:text-blue-700 text-slate-600 text-xs font-bold transition-all"><i class="fa-solid fa-code-branch text-blue-400 text-[10px]"></i>Versions</a>
-                @if($document->canEdit())
+                @if($document->canEdit() && !$document->isInWorkflow())
                 <button @click="uploadModal = true" class="flex items-center gap-3 w-full px-3 py-2.5 rounded-xl bg-slate-50 hover:bg-blue-50 hover:text-blue-700 text-slate-600 text-xs font-bold transition-all"><i class="fa-solid fa-upload text-blue-400 text-[10px]"></i>Uploader une nouvelle version</button>
                 @endif
                 <a href="{{ route('documents.audit', $document) }}" class="flex items-center gap-3 w-full px-3 py-2.5 rounded-xl bg-slate-50 hover:bg-purple-50 hover:text-purple-700 text-slate-600 text-xs font-bold transition-all"><i class="fa-solid fa-clock-rotate-left text-purple-400 text-[10px]"></i>Journal d'audit</a>
                 <a href="{{ route('documents.download', $document) }}" class="flex items-center gap-3 w-full px-3 py-2.5 rounded-xl bg-slate-50 hover:bg-green-50 hover:text-green-700 text-slate-600 text-xs font-bold transition-all"><i class="fa-solid fa-download text-green-400 text-[10px]"></i>Telecharger</a>
                 <a href="{{ route('documents.export-archive', $document) }}" class="flex items-center gap-3 w-full px-3 py-2.5 rounded-xl bg-slate-50 hover:bg-indigo-50 hover:text-indigo-700 text-slate-600 text-xs font-bold transition-all"><i class="fa-solid fa-file-zipper text-indigo-400 text-[10px]"></i>Exporter archive ZIP</a>
-                @if(!$document->isArchived())
-                <form action="{{ route('documents.archive', $document) }}" method="POST">@csrf
-                <button type="submit" class="flex items-center gap-3 w-full px-3 py-2.5 rounded-xl bg-slate-50 hover:bg-amber-50 hover:text-amber-700 text-slate-600 text-xs font-bold transition-all"><i class="fa-solid fa-box-archive text-amber-400 text-[10px]"></i>Archiver</button></form>
+                @if($document->official_copy_path)
+                <a href="{{ route('documents.official-copy', $document) }}" data-no-loader class="flex items-center gap-3 w-full px-3 py-2.5 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-700 text-xs font-bold transition-all"><i class="fa-solid fa-certificate text-emerald-500 text-[10px]"></i>Copie officielle (PDF + certificat, v{{ $document->official_copy_version }})</a>
+                @endif
+                @if($document->archival_copy_path)
+                <a href="{{ route('documents.archival-copy', $document) }}" data-no-loader class="flex items-center gap-3 w-full px-3 py-2.5 rounded-xl bg-slate-50 hover:bg-red-50 hover:text-red-700 text-slate-600 text-xs font-bold transition-all"><i class="fa-solid fa-file-pdf text-red-400 text-[10px]"></i>Copie d'archivage PDF/A</a>
+                @endif
+                @if($document->integrity_checked_at)
+                <p class="flex items-center gap-2 px-3 pt-1 text-[10px] {{ $document->integrity_status === 'ok' ? 'text-emerald-600' : 'text-red-600' }}">
+                    <i class="fa-solid {{ $document->integrity_status === 'ok' ? 'fa-shield-halved' : 'fa-triangle-exclamation' }}"></i>
+                    {{ ['ok' => 'Intégrité vérifiée', 'altered' => 'Fichier modifié hors de la plateforme', 'missing' => 'Fichier introuvable'][$document->integrity_status] ?? '' }}
+                    le {{ $document->integrity_checked_at->format('d/m/Y') }}
+                </p>
+                @endif
+                @if(!$document->isArchived() && $document->canManage())
+                <button type="button" @click="archiveModal = true" class="flex items-center gap-3 w-full px-3 py-2.5 rounded-xl bg-slate-50 hover:bg-amber-50 hover:text-amber-700 text-slate-600 text-xs font-bold transition-all"><i class="fa-solid fa-box-archive text-amber-400 text-[10px]"></i>Archiver</button>
+                @elseif($document->isArchived() && auth()->user()->hasRole('admin'))
+                <button type="button" @click="unarchiveModal = true" class="flex items-center gap-3 w-full px-3 py-2.5 rounded-xl bg-slate-50 hover:bg-slate-100 text-slate-600 text-xs font-bold transition-all"><i class="fa-solid fa-box-open text-slate-400 text-[10px]"></i>Désarchiver</button>
                 @endif
                 @if(auth()->user()->hasRole('admin'))
                     @if($document->isUnderLegalHold())
@@ -549,7 +668,7 @@
             <div class="w-9 h-9 rounded-xl {{ $isCurrent ? 'bg-orange-100' : 'bg-slate-100' }} flex items-center justify-center shrink-0"><span class="font-mono font-black text-xs {{ $isCurrent ? 'text-orange-600' : 'text-slate-500' }}">v{{ $version->version_number }}</span></div>
             <div class="flex-1 min-w-0"><p class="text-xs font-bold text-slate-800">{{ $version->creator?->full_name ?? 'Systeme' }}</p><p class="text-[9px] text-slate-400">{{ $version->created_at->format('d/m/Y H:i') }}@if($version->change_description)  {{ $version->change_description }}@endif</p></div>
             @if($isCurrent)<span class="px-2 py-0.5 bg-orange-100 text-orange-600 rounded text-[8px] font-black uppercase shrink-0">Actuelle</span>
-            @else<form action="{{ route('documents.versions.restore', [$document, $version->version_number]) }}" method="POST" class="inline">@csrf<button type="submit" class="text-[9px] font-black text-blue-600 hover:underline uppercase shrink-0">Restaurer</button></form>@endif
+            @elseif(!$document->isInWorkflow() && $document->canEdit())<form action="{{ route('documents.versions.restore', [$document, $version->version_number]) }}" method="POST" class="inline">@csrf<button type="submit" class="text-[9px] font-black text-blue-600 hover:underline uppercase shrink-0">Restaurer</button></form>@endif
         </div>
         @empty
         <div class="flex flex-col items-center justify-center py-12 text-center"><i class="fa-solid fa-code-branch text-slate-200 text-3xl mb-3"></i><p class="text-xs font-bold text-slate-400">Aucune version</p></div>
@@ -625,21 +744,21 @@
                 class="relative border-2 border-dashed rounded-xl p-6 text-center transition-all cursor-pointer"
                 @click="$refs.fileInput.click()">
 
-                <input type="file" name="file" accept=".docx,.doc,.pdf" required
+                <input type="file" name="file" accept="{{ \App\Support\FileType::acceptAttribute($document->fileType()->family) }}" required
                        x-ref="fileInput" @change="handleFile($event)" class="hidden">
 
                 <template x-if="!fileName">
                     <div>
-                        @php $docExt = strtolower(pathinfo($document->file_path, PATHINFO_EXTENSION)); @endphp
-                        <i class="fa-solid {{ $docExt === 'pdf' ? 'fa-file-pdf text-red-300' : 'fa-file-word text-slate-300' }} text-3xl mb-2"></i>
-                        <p class="text-xs font-bold text-slate-500">Glissez votre fichier {{ $docExt === 'pdf' ? 'PDF' : 'Word' }} ici</p>
+                        @php $docType = $document->fileType(); @endphp
+                        <x-file-icon :document="$document" class="text-3xl mb-2 opacity-50" />
+                        <p class="text-xs font-bold text-slate-500">Glissez votre fichier {{ $docType->label() }} ici</p>
                         <p class="text-[10px] text-slate-400 mt-1">ou cliquez pour parcourir</p>
-                        <p class="text-[9px] text-slate-300 mt-2 font-mono">{{ $docExt === 'pdf' ? '.pdf' : '.docx / .doc' }} — max 150 Mo</p>
+                        <p class="text-[9px] text-slate-300 mt-2 font-mono">{{ str_replace(',', ' / ', \App\Support\FileType::acceptAttribute($docType->family)) }} — max {{ intdiv(config('ged.max_upload_kb'), 1024) }} Mo</p>
                     </div>
                 </template>
                 <template x-if="fileName">
                     <div class="flex items-center gap-3 justify-center">
-                        <i class="fa-solid fa-file-word text-2xl text-blue-500"></i>
+                        <i class="fa-solid text-2xl" :class="fileIcon(fileName)"></i>
                         <div class="text-left">
                             <p class="text-xs font-bold text-slate-800" x-text="fileName"></p>
                             <p class="text-[10px] text-blue-500 font-bold mt-0.5">Fichier sélectionné ✓</p>
@@ -683,7 +802,8 @@ function wordUpload() {
         handleDrop(e) {
             this.dragging = false;
             const f = e.dataTransfer.files[0];
-            if (f && (f.name.endsWith('.docx') || f.name.endsWith('.doc') || f.name.endsWith('.pdf'))) {
+            const allowed = @js(\App\Support\FileType::acceptAttribute($document->fileType()->family)).split(',');
+            if (f && allowed.some(ext => f.name.toLowerCase().endsWith(ext))) {
                 this.fileName = f.name;
                 const dt = new DataTransfer(); dt.items.add(f);
                 this.$refs.fileInput.files = dt.files;

@@ -11,7 +11,11 @@ class DocumentLockController extends Controller
 {
     public function acquire(Document $document)
     {
-        $timeoutMin = (int)(DB::table('settings')->where('key', 'lock_timeout_min')->value('value') ?? 30);
+        if (!$document->canEdit()) {
+            return response()->json(['error' => 'Permission refusée'], 403);
+        }
+
+        $timeoutMin = (int)(appSettings()['lock_timeout_min'] ?? 30) ?: 30;
 
         // Vérifier si déjà verrouillé par quelqu'un d'autre
         $existing = $document->lock;
@@ -49,6 +53,10 @@ class DocumentLockController extends Controller
 
     public function status(Document $document)
     {
+        if (!$document->canView()) {
+            return response()->json(['error' => 'Accès refusé'], 403);
+        }
+
         $lock = $document->lock;
         if (!$lock || $lock->isExpired()) {
             return response()->json(['locked' => false]);

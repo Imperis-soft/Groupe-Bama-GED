@@ -2,7 +2,6 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\License;
 use App\Models\LoginHistory;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -13,21 +12,11 @@ class AuthController extends Controller
 {
     public function showLogin()
     {
-        // Vérifier si la licence est expirée
-        if (! \App\Models\License::isSystemLicensed()) {
-            return redirect()->route('license.expired');
-        }
-
         return view('auth.login');
     }
 
     public function login(Request $request)
     {
-        // Vérifier la licence avant toute tentative de connexion
-        if (! License::isSystemLicensed()) {
-            return redirect()->route('license.expired');
-        }
-
         $credentials = $request->validate([
             'email'    => ['required', 'email'],
             'password' => ['required'],
@@ -43,6 +32,12 @@ class AuthController extends Controller
         }
 
         if (Auth::attempt($credentials, $request->boolean('remember'))) {
+            if (! Auth::user()->is_active) {
+                Auth::logout();
+                RateLimiter::hit($key, 60);
+                return back()->withErrors(['email' => 'Votre compte a été désactivé. Contactez votre administrateur.'])->onlyInput('email');
+            }
+
             $request->session()->regenerate();
             RateLimiter::clear($key);
 
@@ -54,6 +49,10 @@ class AuthController extends Controller
                 'success'    => true,
                 'logged_at'  => now(),
             ]);
+
+            if (Auth::user()->isSuperAdmin()) {
+                return redirect()->intended(route('super.dashboard'));
+            }
 
             return redirect()->intended('/dashboard');
         }

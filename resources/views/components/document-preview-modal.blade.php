@@ -20,7 +20,7 @@
             <div class="bg-white px-4 pt-5 pb-4 sm:p-6 sm:pb-4 border-b border-gray-200">
                 <div class="flex items-center justify-between">
                     <div class="flex items-center gap-3">
-                        <i class="fa-solid fa-file-word text-2xl text-orange-600"></i>
+                        <i class="fa-solid text-2xl" :class="fileIcon(document?.file_path)"></i>
                         <div>
                             <h3 class="text-lg font-bold text-gray-900" x-text="document.title"></h3>
                             <p class="text-sm text-gray-500 font-mono" x-text="document.reference"></p>
@@ -63,9 +63,9 @@
                     </div>
 
                     <!-- Tags -->
-                    <div x-show="document.tags" class="flex flex-wrap gap-2">
+                    <div x-show="document?.tags?.length" class="flex flex-wrap gap-2">
                         <span class="font-bold text-gray-600 text-sm">Tags:</span>
-                        <template x-for="tag in document.tags?.split(',')" :key="tag">
+                        <template x-for="tag in (Array.isArray(document?.tags) ? document.tags : String(document?.tags || '').split(','))" :key="tag">
                             <span class="px-2 py-1 bg-orange-100 text-orange-700 rounded text-xs font-medium" x-text="tag.trim()"></span>
                         </template>
                     </div>
@@ -77,10 +77,10 @@
                     </div>
 
                     <!-- Aperçu du contenu -->
-                    <div x-show="document.content_text" class="bg-white p-4 rounded-lg border border-gray-200">
+                    <div x-show="document?.excerpt" class="bg-white p-4 rounded-lg border border-gray-200">
                         <h4 class="font-bold text-gray-700 mb-2">Aperçu du contenu:</h4>
                         <div class="text-gray-600 text-sm leading-relaxed max-h-32 overflow-y-auto"
-                             x-text="document.content_text?.substring(0, 500) + (document.content_text?.length > 500 ? '...' : '')">
+                             x-text="(document?.excerpt || '') + ((document?.excerpt?.length || 0) >= 500 ? ' …' : '')">
                         </div>
                     </div>
 

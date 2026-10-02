@@ -25,7 +25,7 @@
     {{-- ===== DOC CARD ===== --}}
     <div class="bg-white rounded-2xl border border-slate-100 shadow-sm p-4 flex items-center gap-4">
         <div class="w-10 h-10 rounded-xl bg-orange-50 flex items-center justify-center shrink-0">
-            <i class="fa-solid fa-file-word text-orange-500 text-sm"></i>
+            <x-file-icon :document="$document" class="text-sm" />
         </div>
         <div class="min-w-0 flex-1">
             <p class="text-sm font-black text-slate-800 truncate">{{ $document->title }}</p>

@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Document partagé — {{ $share->document->title }}</title>
+    <x-favicons />
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
     <style>
@@ -18,11 +19,9 @@
     <header class="bg-white border-b border-slate-100 shadow-sm">
         <div class="max-w-5xl mx-auto px-4 py-4 flex items-center justify-between">
             <div class="flex items-center gap-3">
-                <div class="flex h-8 w-8 items-center justify-center rounded-xl bg-orange-600">
-                    <i class="fa-solid fa-file-shield text-white text-xs"></i>
-                </div>
+                <x-logo class="h-9 w-9" />
                 <div>
-                    <p class="text-sm font-black text-slate-900 tracking-tight leading-none">Groupe Bama</p>
+                    <p class="text-sm font-black text-slate-900 tracking-tight leading-none">{{ $share->document->organization?->name ?? config('saas.platform_name') }}</p>
                     <p class="text-[9px] font-bold text-slate-400 uppercase tracking-widest">GED — Document partagé</p>
                 </div>
             </div>
@@ -41,7 +40,7 @@
             <div class="h-1.5 w-full bg-orange-500"></div>
             <div class="p-6 flex flex-col sm:flex-row sm:items-start gap-5">
                 <div class="w-14 h-14 rounded-2xl bg-orange-50 flex items-center justify-center shrink-0 border border-orange-100">
-                    <i class="fa-solid fa-file-word text-orange-500 text-2xl"></i>
+                    <x-file-icon :document="$share->document" class="text-2xl" />
                 </div>
                 <div class="flex-1 min-w-0">
                     <h1 class="text-xl font-black text-slate-900 tracking-tight leading-tight">
@@ -147,8 +146,8 @@
     {{-- Footer --}}
     <footer class="border-t border-slate-100 bg-white py-4">
         <div class="max-w-5xl mx-auto px-4 flex items-center justify-between">
-            <p class="text-[9px] text-slate-400 font-bold uppercase tracking-widest">© {{ date('Y') }} Groupe Bama — GED</p>
-            <p class="text-[9px] text-slate-300">Solution gérée par Imperis Sarl</p>
+            <p class="text-[9px] text-slate-400 font-bold uppercase tracking-widest">© {{ date('Y') }} {{ $share->document->organization?->name ?? config('saas.platform_name') }} — {{ config('saas.platform_name') }}</p>
+            <p class="text-[9px] text-slate-300">Solution gérée par {{ config('saas.vendor_name') }}</p>
         </div>
     </footer>
 

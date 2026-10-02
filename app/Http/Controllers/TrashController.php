@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Document;
+use App\Services\DocumentArchivalService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 
@@ -26,7 +27,13 @@ class TrashController extends Controller
     public function restore(int $id)
     {
         $document = Document::onlyTrashed()->findOrFail($id);
+
+        if (!auth()->user()->hasRole('admin') && $document->creator_id !== auth()->id()) {
+            abort(403, 'Vous ne pouvez restaurer que vos propres documents.');
+        }
+
         $document->restore();
+        app(DocumentArchivalService::class)->logAction($document, 'restored', 'Restauré depuis la corbeille');
 
         return back()->with('success', 'Document restauré : ' . $document->title);
     }
@@ -37,9 +44,11 @@ class TrashController extends Controller
 
         $document = Document::onlyTrashed()->findOrFail($id);
 
-        // Supprimer le fichier physique
-        Storage::disk('s3')->delete($document->file_path);
+        if ($document->isUnderLegalHold()) {
+            return back()->with('error', 'Ce document est sous gel juridique (Legal Hold) et ne peut pas être supprimé.');
+        }
 
+        app(DocumentArchivalService::class)->deleteStoredFiles($document);
         $document->forceDelete();
 
         return back()->with('success', 'Document supprimé définitivement.');
@@ -49,9 +58,10 @@ class TrashController extends Controller
     {
         if (!auth()->user()->hasRole('admin')) abort(403);
 
-        $trashed = Document::onlyTrashed()->get();
+        $trashed = Document::onlyTrashed()->where('legal_hold', false)->get();
+        $service = app(DocumentArchivalService::class);
         foreach ($trashed as $doc) {
-            Storage::disk('s3')->delete($doc->file_path);
+            $service->deleteStoredFiles($doc);
             $doc->forceDelete();
         }
 

@@ -4,7 +4,9 @@
     <meta charset="utf-8">
     <meta name="csrf-token" content="{{ csrf_token() }}">
 
-    <title>{{ config('app.name', 'Groupe Bama') }} - @yield('title', 'Vérification')</title>
+    <title>{{ config('saas.platform_name') }} - @yield('title', 'Vérification')</title>
+
+    <x-favicons />
 
     <!-- Fonts -->
     <link rel="preconnect" href="https://fonts.bunny.net">

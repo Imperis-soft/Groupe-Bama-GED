@@ -70,14 +70,45 @@
                 </div>
 
                 <div>
-                    <label class="block text-[11px] font-black text-gray-400 uppercase tracking-widest mb-2 ml-1">Politique de rétention (années)</label>
-                    <input type="number" name="default_retention_years" min="0" max="100"
-                           value="{{ old('default_retention_years', $category->default_retention_years) }}"
-                           class="w-full bg-gray-50 border-2 border-gray-50 rounded-2xl px-6 py-4 text-gray-900 font-bold focus:bg-white focus:border-orange-500 focus:ring-0 transition-all placeholder:text-gray-300"
-                           placeholder="ex: 5">
-                    <p class="text-[10px] text-gray-400 mt-2 ml-1 italic">Durée de conservation par défaut pour les documents de cette catégorie. Laissez vide si non applicable.</p>
+                    <label class="block text-[11px] font-black text-gray-400 uppercase tracking-widest mb-2 ml-1">Conservation</label>
+                    <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                        <div>
+                            <input type="number" name="default_retention_years" min="0" max="100"
+                                   value="{{ old('default_retention_years', $category->default_retention_years) }}"
+                                   class="w-full bg-gray-50 border-2 border-gray-50 rounded-2xl px-5 py-3.5 text-gray-900 font-bold focus:bg-white focus:border-orange-500 focus:ring-0 transition-all placeholder:text-gray-300"
+                                   placeholder="Durée (années)">
+                            <p class="text-[10px] text-gray-400 mt-1 ml-1">Durée en années. Vide : celle de la catégorie parente.</p>
+                        </div>
+                        <div>
+                            <select name="retention_trigger" class="w-full bg-gray-50 border-2 border-gray-50 rounded-2xl px-4 py-3.5 text-sm text-gray-900 font-medium focus:bg-white focus:border-orange-500 focus:ring-0">
+                                @foreach(\App\Models\Category::RETENTION_TRIGGERS as $value => $label)
+                                <option value="{{ $value }}" @selected(old('retention_trigger', $category->retention_trigger ?? 'created') === $value)>{{ $label }}</option>
+                                @endforeach
+                            </select>
+                            <p class="text-[10px] text-gray-400 mt-1 ml-1">À compter de…</p>
+                        </div>
+                        <div>
+                            <select name="final_disposition" class="w-full bg-gray-50 border-2 border-gray-50 rounded-2xl px-4 py-3.5 text-sm text-gray-900 font-medium focus:bg-white focus:border-orange-500 focus:ring-0">
+                                @foreach(\App\Models\Category::FINAL_DISPOSITIONS as $value => $label)
+                                <option value="{{ $value }}" @selected(old('final_disposition', $category->final_disposition ?? 'review') === $value)>{{ $label }}</option>
+                                @endforeach
+                            </select>
+                            <p class="text-[10px] text-gray-400 mt-1 ml-1">Ensuite… (rien n'est détruit sans validation)</p>
+                        </div>
+                    </div>
                     @error('default_retention_years') <p class="text-red-500 text-xs mt-1 ml-1">{{ $message }}</p> @enderror
+                    @if($category->documents()->exists())
+                    <label class="flex items-start gap-2 mt-3 ml-1 text-xs text-gray-500 cursor-pointer">
+                        <input type="checkbox" name="apply_retention_to_existing" value="1" class="mt-0.5 rounded border-gray-300 text-orange-600 focus:ring-orange-500">
+                        Appliquer aussi la nouvelle durée aux documents déjà rangés dans cette catégorie et ses sous-catégories
+                        (sinon ils gardent la durée fixée à leur dépôt ; le point de départ et le sort final s'appliquent dans tous les cas).
+                    </label>
+                    @endif
                 </div>
+
+                @include('categories._workflow')
+
+                @include('categories._access')
 
                 <div class="pt-6 flex items-center justify-between border-t border-gray-50">
                     <button type="button" onclick="window.history.back()" class="text-gray-400 hover:text-red-500 font-bold text-sm transition-all flex items-center gap-2">

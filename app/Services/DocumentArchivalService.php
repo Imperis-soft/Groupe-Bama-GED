@@ -5,7 +5,6 @@ namespace App\Services;
 use App\Models\Document;
 use App\Models\DocumentVersion;
 use App\Models\DocumentAuditLog;
-use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Auth;
 use ZipArchive;
@@ -13,13 +12,18 @@ use ZipArchive;
 class DocumentArchivalService
 {
     // Créer une nouvelle version de document
-    public function createVersion(Document $document, string $filePath, string $changeDescription = null): DocumentVersion
+    public function createVersion(Document $document, string $filePath, ?string $changeDescription = null): DocumentVersion
     {
+        // Dernier rempart : les contrôleurs refusent déjà le dépôt pendant un circuit
+        if ($document->isInWorkflow()) {
+            throw new \LogicException("Contenu gelé : le document {$document->reference} est dans un circuit d'approbation ou de signature.");
+        }
+
         // Calculer le checksum du fichier
-        $checksum = $this->calculateChecksum($filePath);
+        $checksum = $this->calculateChecksum($document, $filePath);
 
         // Incrémenter la version
-        $nextVersion = $document->versions()->max('version_number') + 1 ?? 1;
+        $nextVersion = max((int) $document->versions()->max('version_number'), (int) $document->version) + 1;
 
         $version = DocumentVersion::create([
             'document_id' => $document->id,
@@ -30,8 +34,8 @@ class DocumentArchivalService
             'created_by' => Auth::id(),
             'metadata' => [
                 'original_name' => basename($filePath),
-                'size' => Storage::disk('s3')->size($filePath),
-                'mime_type' => Storage::disk('s3')->mimeType($filePath),
+                'size' => $document->disk()->size($filePath),
+                'mime_type' => $document->disk()->mimeType($filePath),
             ]
         ]);
 
@@ -48,32 +52,90 @@ class DocumentArchivalService
             'change_description' => $changeDescription
         ]);
 
+        $this->reopenAfterContentChange($document, "la version {$nextVersion}");
+
         return $version;
     }
 
-    // Archiver un document
-    public function archiveDocument(Document $document, string $reason = null): bool
+    /**
+     * Archiver un document : il devient figé (plus de modification, de nouvelle version, de suppression
+     * ni de signature). Son empreinte SHA-256 est figée dans le journal au moment de l'archivage.
+     * Retourne un message d'erreur, ou null si l'archivage a eu lieu.
+     */
+    public function archive(Document $document, ?string $reason = null): ?string
     {
-        // Vérifier le Legal Hold
         if ($document->isUnderLegalHold()) {
-            return false;
+            return 'Ce document est sous gel juridique (Legal Hold) et ne peut pas être archivé.';
+        }
+        if ($document->isArchived()) {
+            return 'Ce document est déjà archivé.';
+        }
+        if ($document->isLockedByOther()) {
+            return 'Ce document est en cours de modification par un autre utilisateur.';
+        }
+        if ($document->isInWorkflow()) {
+            return 'Ce document est dans un circuit ' . ($document->status === 'review' ? 'd\'approbation' : 'de signature') . ' en cours : il ne peut pas être archivé avant la fin du circuit.';
+        }
+        $rule = $document->workflowRule();
+        if ($rule['signature'] && $document->status !== 'signed') {
+            return 'Sa catégorie exige des signatures : ce document ne peut être archivé qu\'une fois signé.';
+        }
+        if ($rule['approval'] && !in_array($document->status, ['approved', 'signed'], true)) {
+            return 'Sa catégorie exige une approbation : ce document ne peut être archivé qu\'une fois approuvé.';
         }
 
+        $checksum = $document->checksum ?: $this->calculateChecksum($document, $document->file_path);
+        $before   = $document->status;
+
         $document->update([
-            'status' => 'archived',
-            'archived_at' => now(),
+            'status'                => 'archived',
+            'archived_at'           => now(),
+            'archived_by'           => Auth::id(),
+            'archive_reason'        => $reason ?: null,
+            'status_before_archive' => $before,
+            'checksum'              => $checksum,
         ]);
 
-        $this->logAction($document, 'archived', "Document archivé: {$reason}");
+        $this->logAction($document, 'archived', 'Document archivé' . ($reason ? " : {$reason}" : ''),
+            ['status' => $before], ['status' => 'archived', 'checksum' => $checksum, 'version' => $document->version]);
 
-        return true;
+        // Copie PDF/A à côté de l'original (format de conservation à long terme)
+        \App\Jobs\CreateArchivalCopy::dispatch($document->id);
+
+        return null;
+    }
+
+    // Compatibilité : true si l'archivage a eu lieu
+    public function archiveDocument(Document $document, ?string $reason = null): bool
+    {
+        return $this->archive($document, $reason) === null;
+    }
+
+    /**
+     * Désarchiver (administrateur, motif obligatoire) : le document retrouve son statut d'avant l'archivage.
+     */
+    public function unarchive(Document $document, string $reason): void
+    {
+        $status = $document->status_before_archive ?: 'approved';
+
+        $document->update([
+            'status'                => $status,
+            'archived_at'           => null,
+            'archived_by'           => null,
+            'archive_reason'        => null,
+            'status_before_archive' => null,
+        ]);
+        // L'ancienne copie PDF/A reste stockée (supprimée avec le document) ; un nouvel archivage en créera une à jour
+        $document->forceFill(['archival_copy_path' => null, 'archival_copy_checksum' => null])->saveQuietly();
+
+        $this->logAction($document, 'unarchived', "Document désarchivé : {$reason}", ['status' => 'archived'], ['status' => $status]);
     }
 
     // Restaurer une version spécifique d'un document
     public function restoreVersion(Document $document, int $versionNumber): bool
     {
-        // Vérifier le Legal Hold
-        if ($document->isUnderLegalHold()) {
+        // Vérifier le Legal Hold ; contenu gelé pendant un circuit
+        if ($document->isUnderLegalHold() || $document->isInWorkflow() || $document->isArchived()) {
             return false;
         }
 
@@ -92,8 +154,34 @@ class DocumentArchivalService
         ]);
 
         $this->logAction($document, 'version_restored', "Restauré à la version {$versionNumber}", $oldValues, $document->fresh()->only(['file_path', 'checksum', 'version']));
+        $this->reopenAfterContentChange($document, "la version {$versionNumber} restaurée");
 
         return true;
+    }
+
+    /**
+     * Nouveau contenu sur un document approuvé ou signé : il repasse en brouillon.
+     * Les approbations et signatures restent dans l'historique, liées à l'ancienne version, mais ne valent pas pour celle-ci.
+     */
+    private function reopenAfterContentChange(Document $document, string $what): void
+    {
+        $before = $document->status;
+        if (!in_array($before, ['approved', 'signed'], true)) {
+            return;
+        }
+
+        $document->update(['status' => 'draft']);
+        app(OfficialCopyService::class)->forget($document);
+        $this->logAction($document, 'workflow_reset',
+            "Nouveau contenu ({$what}) : le document repasse en brouillon. Les approbations et signatures précédentes restent attachées à l'ancienne version ; un nouveau circuit est nécessaire.",
+            ['status' => $before], ['status' => 'draft']);
+
+        $creator = $document->creator;
+        if ($creator && $creator->id !== Auth::id()) {
+            app(NotificationService::class)->notify($creator, 'workflow_reset', 'Document repassé en brouillon',
+                "Un nouveau contenu a été déposé sur « {$document->title} » (" . ($before === 'signed' ? 'signé' : 'approuvé') . ") : un nouveau circuit est nécessaire.",
+                url("/documents/{$document->id}"), $document);
+        }
     }
 
     // ===========================
@@ -201,7 +289,7 @@ class DocumentArchivalService
         }
 
         // 1. Fichier principal (version courante)
-        $mainContent = Storage::disk('s3')->get($document->file_path);
+        $mainContent = $document->disk()->get($document->file_path);
         if ($mainContent) {
             $ext = pathinfo($document->file_path, PATHINFO_EXTENSION);
             $zip->addFromString("document_courant.{$ext}", $mainContent);
@@ -211,7 +299,7 @@ class DocumentArchivalService
         $zip->addEmptyDir('versions');
         foreach ($document->versions as $version) {
             try {
-                $vContent = Storage::disk('s3')->get($version->file_path);
+                $vContent = $document->disk()->get($version->file_path);
                 if ($vContent) {
                     $vExt = pathinfo($version->file_path, PATHINFO_EXTENSION);
                     $zip->addFromString("versions/v{$version->version_number}.{$vExt}", $vContent);
@@ -290,18 +378,12 @@ class DocumentArchivalService
 
         $count = 0;
         foreach ($trashedDocuments as $document) {
-            // Ne pas purger les documents sous Legal Hold
-            if ($document->isUnderLegalHold()) {
+            // Ne pas purger les documents sous Legal Hold, ni les documents archivés
+            if ($document->isUnderLegalHold() || $document->isArchived()) {
                 continue;
             }
 
-            // Supprimer le fichier principal
-            Storage::disk('s3')->delete($document->file_path);
-
-            // Supprimer les fichiers de toutes les versions
-            foreach ($document->versions as $version) {
-                Storage::disk('s3')->delete($version->file_path);
-            }
+            $this->deleteStoredFiles($document);
 
             // Logger avant suppression définitive
             $this->logAction($document, 'purged', "Purgé de la corbeille (supprimé depuis {$days}+ jours)");
@@ -331,12 +413,8 @@ class DocumentArchivalService
         $categoryRetention = $document->category->default_retention_years;
 
         if ($categoryRetention && $categoryRetention > 0) {
-            $expiresAt = $document->created_at->addYears($categoryRetention);
-
-            $document->update([
-                'retention_years' => $categoryRetention,
-                'expires_at' => $expiresAt,
-            ]);
+            // La durée de conservation n'est PAS une date d'échéance : expires_at n'est pas touché
+            $document->update(['retention_years' => $categoryRetention]);
 
             $this->logAction($document, 'retention_applied', "Politique de rétention catégorie appliquée: {$categoryRetention} ans");
         }
@@ -347,24 +425,25 @@ class DocumentArchivalService
     // ===========================
 
     // Calculer le checksum d'un fichier
-    private function calculateChecksum(string $filePath): string
+    private function calculateChecksum(Document $document, string $filePath): string
     {
-        $content = Storage::disk('s3')->get($filePath);
+        $content = $document->disk()->get($filePath);
         return hash('sha256', $content);
     }
 
     // Logger une action d'audit
-    public function logAction(Document $document, string $action, string $description = null, array $oldValues = null, array $newValues = null): void
+    public function logAction(Document $document, string $action, ?string $description = null, ?array $oldValues = null, ?array $newValues = null): void
     {
         DocumentAuditLog::create([
+            'organization_id' => $document->organization_id,
             'document_id' => $document->id,
             'user_id' => Auth::id(),
             'action' => $action,
             'description' => $description,
             'old_values' => $oldValues,
             'new_values' => $newValues,
-            'ip_address' => request()->ip(),
-            'user_agent' => request()->userAgent(),
+            'ip_address' => app()->runningInConsole() ? null : request()->ip(),
+            'user_agent' => app()->runningInConsole() ? 'console' : request()->userAgent(),
         ]);
     }
 
@@ -375,31 +454,28 @@ class DocumentArchivalService
             return false;
         }
 
-        $currentChecksum = $this->calculateChecksum($document->file_path);
+        $currentChecksum = $this->calculateChecksum($document, $document->file_path);
         return hash_equals($document->checksum, $currentChecksum);
     }
 
-    // Nettoyer les documents expirés
-    public function cleanupExpiredDocuments(): int
+    // Supprimer de MinIO le fichier principal et les fichiers de toutes les versions
+    public function deleteStoredFiles(Document $document): void
     {
-        $expiredDocuments = Document::where('expires_at', '<', now())
-            ->where('status', '!=', 'deleted')
-            ->where('legal_hold', false) // Ne pas toucher aux documents sous Legal Hold
-            ->get();
+        // Copies PDF/A et copies officielles (actuelles et précédentes)
+        $archives = collect(['archives', 'official'])
+            ->flatMap(fn ($sub) => $document->disk()->files(trim(dirname($document->file_path) . '/' . $sub, './')))
+            ->filter(fn ($path) => str_starts_with(basename($path), $document->reference . '_v'));
 
-        $count = 0;
-        foreach ($expiredDocuments as $document) {
-            // Supprimer physiquement le fichier
-            Storage::disk('s3')->delete($document->file_path);
+        $paths = $document->versions()->pluck('file_path')
+            ->push($document->file_path)
+            ->push($document->archival_copy_path)
+            ->merge($archives)
+            // PDF d'aperçu mis en cache par DocumentConverter
+            ->merge(app(DocumentConverter::class)->previewPaths($document))
+            ->filter()
+            ->unique()
+            ->all();
 
-            // Marquer comme supprimé
-            $document->update(['status' => 'deleted']);
-
-            $this->logAction($document, 'auto_deleted', 'Supprimé automatiquement (expiration)');
-
-            $count++;
-        }
-
-        return $count;
+        $document->disk()->delete($paths);
     }
 }

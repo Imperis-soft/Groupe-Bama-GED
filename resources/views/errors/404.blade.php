@@ -1,4 +1,4 @@
-@extends('layouts.app')
+@extends(auth()->check() ? 'layouts.app' : 'layouts.guest')
 
 @section('content')
 <div class="flex flex-col items-center justify-center min-h-[60vh] text-center px-4">

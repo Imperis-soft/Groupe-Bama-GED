@@ -4,17 +4,13 @@ namespace App\Console\Commands;
 
 use App\Models\Document;
 use App\Models\DocumentVerification;
-use Endroid\QrCode\QrCode as EndroidQrCode;
-use Endroid\QrCode\Writer\PngWriter;
+use App\Services\WordTemplate;
 use Illuminate\Console\Command;
-use Illuminate\Support\Facades\Storage;
-use Illuminate\Support\Str;
-use PhpOffice\PhpWord\IOFactory;
 
 class RegenerateQrCodes extends Command
 {
     protected $signature   = 'documents:regenerate-qrcodes {--id= : ID d\'un document spécifique}';
-    protected $description = 'Régénère les QR codes de vérification dans les documents DOCX';
+    protected $description = 'Régénère le QR code de vérification des documents DOCX (contenu conservé)';
 
     public function handle(): int
     {
@@ -25,9 +21,9 @@ class RegenerateQrCodes extends Command
         }
 
         $documents = $query->get();
-        $appUrl    = rtrim(config('app.url'), '/');
+        $template  = app(WordTemplate::class);
 
-        $this->info("APP_URL utilisée : {$appUrl}");
+        $this->info('APP_URL utilisée : ' . config('app.url'));
         $this->info("Traitement de {$documents->count()} document(s)...");
 
         $bar = $this->output->createProgressBar($documents->count());
@@ -37,20 +33,20 @@ class RegenerateQrCodes extends Command
         $errors  = 0;
 
         foreach ($documents as $document) {
+            // Document figé (archivé, gel juridique, en circuit, approuvé ou signé) : son fichier ne doit plus changer,
+            // sinon l'empreinte approuvée ou signée ne correspondrait plus
+            if ($document->isArchived() || $document->isUnderLegalHold()
+                || in_array($document->status, ['review', 'signing', 'approved', 'signed'], true)) {
+                $bar->advance();
+                continue;
+            }
             try {
-                // Récupérer ou créer le code de vérification
-                $verification = $document->verification;
-                if (!$verification) {
-                    $verification = DocumentVerification::create([
-                        'document_id'       => $document->id,
-                        'verification_code' => Str::random(32),
-                    ]);
+                if (strtolower(pathinfo($document->file_path, PATHINFO_EXTENSION)) !== 'docx') {
+                    $bar->advance();
+                    continue;
                 }
 
-                $verificationUrl = $appUrl . '/verify/' . $verification->verification_code;
-
-                // Télécharger le DOCX depuis MinIO (pour vérifier qu'il existe)
-                if (!Storage::disk('s3')->exists($document->file_path)) {
+                if (!$document->disk()->exists($document->file_path)) {
                     $this->newLine();
                     $this->warn("Fichier introuvable : {$document->reference}");
                     $errors++;
@@ -58,57 +54,36 @@ class RegenerateQrCodes extends Command
                     continue;
                 }
 
-                // Générer le nouveau QR code
-                $qrCode   = EndroidQrCode::create($verificationUrl)->setSize(100);
-                $qrWriter = new PngWriter();
-                $qrResult = $qrWriter->write($qrCode);
-                $qrPath   = tempnam(sys_get_temp_dir(), 'qr_img_') . '.png';
-                file_put_contents($qrPath, $qrResult->getString());
+                // Récupérer ou créer le code de vérification
+                $verification = $document->verification ?? DocumentVerification::create([
+                    'document_id'       => $document->id,
+                    'verification_code' => DocumentVerification::generateCode(),
+                ]);
 
-                // Recréer un DOCX propre avec le bon QR code
-                $phpWord = new \PhpOffice\PhpWord\PhpWord();
-                $phpWord->setDefaultFontName('Arial');
-                $phpWord->setDefaultFontSize(11);
-                $section = $phpWord->addSection();
-
-                // En-tête
-                $header = $section->addHeader();
-                $header->addText("GROUPE BAMA", ['bold' => true, 'size' => 18, 'color' => 'FF6600'], ['alignment' => 'center']);
-                $header->addText("Système de Gestion Documentaire", ['size' => 10], ['alignment' => 'center']);
-
-                // Infos doc
-                $table = $section->addTable(['borderSize' => 0, 'borderColor' => 'FFFFFF', 'cellMargin' => 80]);
-                $table->addRow();
-                $table->addCell(4000)->addText("Référence:", ['bold' => true]);
-                $table->addCell(6000)->addText($document->reference, ['bold' => true, 'size' => 12]);
-                $table->addCell(3000)->addText("Version: " . $document->version, ['bold' => true]);
-                $table->addRow();
-                $table->addCell(4000)->addText("Titre:", ['bold' => true]);
-                $table->addCell(6000)->addText($document->title);
-                $table->addCell(3000)->addText("Statut: " . ucfirst($document->status), ['bold' => true]);
-
-                $section->addTextBreak(1);
-                $section->addText("Contenu du document :", ['bold' => true, 'size' => 12]);
-                $section->addTextBreak(1);
-                $section->addText("Document mis à jour — QR code régénéré.", ['italic' => true]);
-
-                // Footer avec nouveau QR code
-                $footer = $section->addFooter();
-                $footer->addImage($qrPath, ['width' => 30, 'height' => 30, 'alignment' => 'center']);
-
-                // Sauvegarder
+                // Remplacer uniquement l'image du QR code : le contenu rédigé reste intact
                 $tempOut = tempnam(sys_get_temp_dir(), 'qr_out_') . '.docx';
-                $writer  = IOFactory::createWriter($phpWord, 'Word2007');
-                $writer->save($tempOut);
+                file_put_contents($tempOut, $document->disk()->get($document->file_path));
+                if ($template->replaceQrCode($tempOut, $verification->verification_code) === 0) {
+                    @unlink($tempOut);
+                    $this->newLine();
+                    $this->warn("Aucun QR code en pied de page : {$document->reference} (ignoré)");
+                    $bar->advance();
+                    continue;
+                }
 
-                // Uploader vers MinIO
+                $checksum = hash_file('sha256', $tempOut);
                 $stream = fopen($tempOut, 'r');
-                Storage::disk('s3')->put($document->file_path, $stream);
+                $document->disk()->put($document->file_path, $stream);
                 if (is_resource($stream)) fclose($stream);
 
-                // Nettoyage
+                // Le fichier a changé : empreinte mise à jour (sinon le contrôle d'intégrité le signalerait) et tracée
+                $old = $document->checksum;
+                $document->update(['checksum' => $checksum]);
+                \App\Models\DocumentVersion::where('document_id', $document->id)->where('file_path', $document->file_path)->update(['checksum' => $checksum]);
+                app(\App\Services\DocumentArchivalService::class)->logAction($document, 'qr_regenerated', 'QR code de vérification régénéré dans le fichier',
+                    ['checksum' => $old], ['checksum' => $checksum]);
+
                 @unlink($tempOut);
-                @unlink($qrPath);
 
                 $success++;
             } catch (\Exception $e) {

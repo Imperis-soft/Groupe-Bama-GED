@@ -20,7 +20,7 @@ class NotifyExpiringDocuments extends Command
             $docs = Document::whereNotNull('expires_at')
                 ->whereDate('expires_at', now()->addDays($days)->toDateString())
                 ->where('status', '!=', 'archived')
-                ->with('creator')
+                ->with('creator', 'organization')
                 ->get();
 
             foreach ($docs as $doc) {
@@ -28,14 +28,15 @@ class NotifyExpiringDocuments extends Command
 
                 $label = $days === 1 ? 'demain' : "dans {$days} jours";
 
-                $service->notify(
+                // Paramètres (SMTP, notifications activées) de l'entreprise du document
+                \App\Support\Tenant::run($doc->organization, fn () => $service->notify(
                     $doc->creator,
                     'document_expiring',
-                    'Document bientôt expiré',
-                    "Le document \"{$doc->title}\" ({$doc->reference}) expire {$label} le {$doc->expires_at->format('d/m/Y')}.",
+                    'Échéance proche',
+                    "Le document \"{$doc->title}\" ({$doc->reference}) arrive à échéance {$label}, le {$doc->expires_at->format('d/m/Y')}. Il reste conservé.",
                     url("/documents/{$doc->id}"),
                     $doc
-                );
+                ));
                 $count++;
             }
         }

@@ -8,6 +8,7 @@ class DocumentSignature extends Model
 {
     protected $fillable = [
         'document_id', 'user_id', 'signature_data', 'signature_hash',
+        'document_checksum', 'document_version',
         'ip_address', 'user_agent', 'page_number', 'position',
         'status', 'reason', 'signed_at',
     ];

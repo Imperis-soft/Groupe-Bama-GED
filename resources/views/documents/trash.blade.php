@@ -34,7 +34,7 @@
             @foreach($documents as $doc)
             <div class="flex items-center gap-4 px-5 py-4 hover:bg-slate-50/60 transition-colors">
                 <div class="w-9 h-9 rounded-xl bg-red-50 flex items-center justify-center shrink-0">
-                    <i class="fa-solid fa-file-word text-red-400 text-sm"></i>
+                    <x-file-icon :document="$doc" class="text-sm opacity-60" />
                 </div>
                 <div class="flex-1 min-w-0">
                     <p class="text-sm font-bold text-slate-700 truncate">{{ $doc->title }}</p>

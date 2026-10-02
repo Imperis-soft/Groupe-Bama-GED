@@ -1,17 +1,34 @@
 @extends('layouts.app')
 
 @section('content')
+@php
+    $canMove = auth()->user()->hasAnyRole(['admin', 'editor']);
+    // Dossier ouvert : cible par défaut de « Nouveau » et « Importer » (si l'utilisateur peut y ranger)
+    $openFolderId = is_int($filters->get('category')) && auth()->user()->canFileInCategory($filters->get('category')) ? $filters->get('category') : null;
+    $fileableFolders = $categories->filter(fn ($c) => auth()->user()->canFileInCategory($c->id));
+    // Dossier ouvert (navigation) : il devient le titre de la page
+    $currentFolder = is_int($filters->get('category')) ? $tree->get($filters->get('category')) : null;
+    $folderPath = $currentFolder ? $tree->path($currentFolder->id) : [];
+    $folderErrors = $errors->getBag('folder');
+    // Navigation pure dans un dossier (aucun critère de recherche) : état « dossier vide » si rien à afficher
+    $browsingFolder = $currentFolder && !array_diff_key($filters->filterParams(), array_flip(['category', 'subcats', 'sort']));
+    $listCols = 'md:grid-cols-[1.25rem_6.5rem_minmax(0,1fr)_9rem_6.5rem_10rem]';
+@endphp
 <div x-data="documentIndex()">
 
     @include('components.document-preview-modal')
 
     {{-- ===== HEADER ===== --}}
-    <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
+    <div class="flex flex-col sm:flex-row {{ $currentFolder ? 'sm:items-end' : 'sm:items-center' }} sm:justify-between gap-4 mb-6">
+        @if($currentFolder)
+        @include('documents._folder-header')
+        @else
         <div>
             <h1 class="text-2xl font-black text-slate-900 tracking-tight leading-none">Documents</h1>
-            <p class="text-xs text-slate-400 font-medium mt-1">Groupe Bama — Archive documentaire</p>
+            <p class="text-xs text-slate-400 font-medium mt-1">{{ brandName() }} — Archive documentaire</p>
         </div>
-        <div class="flex items-center gap-2 flex-wrap">
+        @endif
+        <div class="flex items-center gap-2 flex-wrap shrink-0">
             <a href="{{ route('documents.advanced-search') }}"
                class="inline-flex items-center gap-2 bg-white border border-slate-200 hover:bg-slate-50 text-slate-600 text-xs font-bold px-4 py-2.5 rounded-xl transition-all shadow-sm">
                 <i class="fa-solid fa-magnifying-glass text-[10px]"></i>
@@ -29,51 +46,39 @@
                     <i class="fa-solid fa-grip"></i>
                 </button>
             </div>
-            {{-- Upload fichier existant --}}
+            @if(auth()->user()->hasAnyRole(['admin', 'editor']))
+            {{-- Dépôt de fichiers (tout format : Word, Excel, PowerPoint, PDF, images…) --}}
             <button @click="uploadModal = true"
-                class="inline-flex items-center gap-2 bg-white border border-slate-200 hover:bg-slate-50 text-slate-600 text-xs font-bold px-4 py-2.5 rounded-xl transition-all shadow-sm">
-                <i class="fa-solid fa-cloud-arrow-up text-[10px]"></i>
-                <span class="hidden sm:inline">Importer</span>
-            </button>
-            <button @click="openModal = true"
                 class="inline-flex items-center gap-2 bg-orange-600 hover:bg-orange-500 active:scale-95 text-white text-xs font-black uppercase tracking-widest px-5 py-2.5 rounded-xl shadow-lg shadow-orange-200 transition-all">
-                <i class="fa-solid fa-plus text-[10px]"></i> Nouveau
+                <i class="fa-solid fa-cloud-arrow-up text-[10px]"></i> Ajouter des documents
             </button>
+            @endif
         </div>
     </div>
 
-    {{-- ===== FILTRES ===== --}}
-    <form method="GET" action="{{ route('documents.index') }}"
-          class="bg-white border border-slate-100 rounded-2xl shadow-sm p-4 mb-6">
-        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-            <div class="sm:col-span-2 relative">
-                <i class="fa-solid fa-magnifying-glass absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-300 text-xs"></i>
-                <input type="text" name="q" value="{{ request('q') }}"
-                       placeholder="Rechercher par titre, référence..."
-                       class="w-full bg-slate-50 border border-slate-100 rounded-xl pl-9 pr-4 py-2.5 text-xs font-medium text-slate-700 placeholder-slate-300 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent transition-all">
-            </div>
-            <select name="category"
-                    class="bg-slate-50 border border-slate-100 rounded-xl px-4 py-2.5 text-xs font-medium text-slate-600 focus:outline-none focus:ring-2 focus:ring-orange-500 transition-all">
-                <option value="">Toutes les catégories</option>
-                @foreach($categories as $cat)
-                    <option value="{{ $cat->id }}" {{ request('category') == $cat->id ? 'selected' : '' }}>
-                        {{ $cat->name }}
-                    </option>
-                @endforeach
-            </select>
-            <div class="flex gap-2">
-                <select name="sort"
-                        class="flex-1 bg-slate-50 border border-slate-100 rounded-xl px-3 py-2.5 text-xs font-medium text-slate-600 focus:outline-none focus:ring-2 focus:ring-orange-500 transition-all">
-                    <option value="recent" {{ request('sort') == 'recent' ? 'selected' : '' }}>Plus récents</option>
-                    <option value="version" {{ request('sort') == 'version' ? 'selected' : '' }}>Par version</option>
-                </select>
-                <button type="submit"
-                    class="bg-orange-600 hover:bg-orange-500 text-white px-4 py-2.5 rounded-xl text-xs font-black transition-all active:scale-95">
-                    <i class="fa-solid fa-filter"></i>
-                </button>
-            </div>
+    <div class="lg:flex lg:items-start lg:gap-6" x-data="{ foldersOpen: false }">
+
+    {{-- ===== DOSSIERS ===== --}}
+    <aside class="lg:w-64 lg:shrink-0 lg:sticky lg:top-4 mb-4 lg:mb-0">
+        <button type="button" @click="foldersOpen = !foldersOpen"
+                class="lg:hidden w-full flex items-center justify-between bg-white border border-slate-100 rounded-xl px-4 py-2.5 text-xs font-bold text-slate-600 shadow-sm">
+            <span><i class="fa-solid fa-folder-tree text-amber-400 mr-2"></i>Dossiers
+                @if($tree->get(is_int($filters->get('category')) ? $filters->get('category') : null))
+                <span class="text-orange-600">· {{ $tree->get($filters->get('category'))->name }}</span>
+                @endif
+            </span>
+            <i class="fa-solid fa-chevron-down text-[9px] transition-transform" :class="foldersOpen && 'rotate-180'"></i>
+        </button>
+        <div class="mt-2 lg:mt-0" :class="foldersOpen ? 'block' : 'hidden lg:block'">
+            @include('documents._folders')
         </div>
-    </form>
+    </aside>
+
+    <div class="flex-1 min-w-0">
+
+    {{-- ===== FILTRES ===== --}}
+    @include('documents._subfolders')
+    @include('documents._filters')
 
     {{-- ===== VUE LISTE ===== --}}
     <div x-show="viewMode === 'list'">
@@ -94,18 +99,16 @@
                         </button>
                     </form>
                     @if(auth()->user()->hasRole('admin'))
-                    <button @click="submitBulk('approve')" class="inline-flex items-center gap-1.5 bg-green-100 hover:bg-green-200 text-green-700 text-[10px] font-black uppercase px-3 py-1.5 rounded-lg transition-all">
-                        <i class="fa-solid fa-check text-[9px]"></i> Approuver
-                    </button>
                     <div x-data="{ catOpen: false }" class="relative">
                         <button @click="catOpen = !catOpen" class="inline-flex items-center gap-1.5 bg-blue-100 hover:bg-blue-200 text-blue-700 text-[10px] font-black uppercase px-3 py-1.5 rounded-lg transition-all">
                             <i class="fa-solid fa-folder text-[9px]"></i> Déplacer
                         </button>
-                        <div x-show="catOpen" @click.outside="catOpen=false" class="absolute top-full mt-1 left-0 bg-white border border-slate-100 rounded-xl shadow-xl z-50 min-w-[160px] py-1">
-                            @foreach(\App\Models\Category::orderBy('name')->get() as $cat)
+                        <div x-show="catOpen" @click.outside="catOpen=false" class="absolute top-full mt-1 left-0 bg-white border border-slate-100 rounded-xl shadow-xl z-50 min-w-[200px] max-h-72 overflow-y-auto py-1">
+                            @foreach($categories as $cat)
                             <button @click="submitBulk('move_category', {{ $cat->id }}); catOpen=false"
-                                class="w-full text-left px-4 py-2 text-xs font-medium text-slate-700 hover:bg-orange-50 hover:text-orange-600 transition-colors">
-                                {{ $cat->name }}
+                                class="w-full text-left px-4 py-2 text-xs font-medium text-slate-700 hover:bg-orange-50 hover:text-orange-600 transition-colors"
+                                style="padding-left: {{ 1 + $cat->depth * 0.75 }}rem">
+                                <i class="fa-solid fa-folder text-amber-400 text-[10px] mr-1"></i>{{ $cat->name }}
                             </button>
                             @endforeach
                         </div>
@@ -121,50 +124,68 @@
             </div>
 
             {{-- Header table --}}
-            <div class="hidden md:grid grid-cols-12 gap-4 px-6 py-3 bg-slate-50 border-b border-slate-100">
-                <div class="col-span-1 flex items-center">
+            @if($documents->isNotEmpty())
+            <div class="hidden md:grid {{ $listCols }} gap-4 px-6 py-3 bg-slate-50 border-b border-slate-100">
+                <div class="flex items-center">
                     <input type="checkbox" @change="toggleAll($event)"
                            :checked="selected.length === {{ $documents->count() }} && {{ $documents->count() }} > 0"
                            class="w-4 h-4 text-orange-600 rounded border-slate-300 focus:ring-orange-500 cursor-pointer">
                 </div>
-                <div class="col-span-2 text-[9px] font-black text-slate-400 uppercase tracking-widest">Référence</div>
-                <div class="col-span-3 text-[9px] font-black text-slate-400 uppercase tracking-widest">Titre</div>
-                <div class="col-span-2 text-[9px] font-black text-slate-400 uppercase tracking-widest">Catégorie</div>
-                <div class="col-span-2 text-[9px] font-black text-slate-400 uppercase tracking-widest">Statut</div>
-                <div class="col-span-2 text-[9px] font-black text-slate-400 uppercase tracking-widest text-right">Actions</div>
+                <div class="text-[9px] font-black text-slate-400 uppercase tracking-widest">Référence</div>
+                <div class="text-[9px] font-black text-slate-400 uppercase tracking-widest">Titre</div>
+                <div class="text-[9px] font-black text-slate-400 uppercase tracking-widest">{{ $currentFolder ? 'Emplacement' : 'Dossier' }}</div>
+                <div class="text-[9px] font-black text-slate-400 uppercase tracking-widest">Statut</div>
+                <div class="text-[9px] font-black text-slate-400 uppercase tracking-widest text-right">Actions</div>
             </div>
+            @endif
 
             <div class="divide-y divide-slate-50">
                 @forelse($documents as $doc)
-                <div class="group px-4 md:px-6 py-4 hover:bg-slate-50/60 transition-colors">
+                <div class="group px-4 md:px-6 py-4 hover:bg-slate-50/60 transition-colors"
+                     @if($canMove) draggable="true" @dragstart="dragStart($event, {{ $doc->id }})" @dragend="dragEnd()" @endif
+                     :class="dragIds.includes({{ $doc->id }}) && 'opacity-50'">
 
                     {{-- Desktop --}}
-                    <div class="hidden md:grid grid-cols-12 gap-4 items-center">
-                        <div class="col-span-1">
+                    <div class="hidden md:grid {{ $listCols }} gap-4 items-center">
+                        <div>
                             <input type="checkbox" :value="{{ $doc->id }}" x-model="selected"
                                    class="w-4 h-4 text-orange-600 rounded border-slate-300 focus:ring-orange-500 cursor-pointer">
                         </div>
-                        <div class="col-span-2">
-                            <span class="font-mono text-[10px] font-bold text-slate-400 bg-slate-100 px-2 py-1 rounded-lg">
+                        <div class="min-w-0">
+                            <span class="font-mono text-[10px] font-bold text-slate-400 bg-slate-100 px-2 py-1 rounded-lg whitespace-nowrap">
                                 {{ $doc->reference }}
                             </span>
                         </div>
-                        <div class="col-span-3 flex items-center gap-3 min-w-0">
+                        <div class="flex items-center gap-3 min-w-0">
                             <div class="w-8 h-8 rounded-lg {{ strtolower(pathinfo($doc->file_path, PATHINFO_EXTENSION)) === 'pdf' ? 'bg-red-50' : 'bg-orange-50' }} flex items-center justify-center shrink-0 group-hover:bg-orange-600 transition-colors">
-                                <i class="fa-solid {{ strtolower(pathinfo($doc->file_path, PATHINFO_EXTENSION)) === 'pdf' ? 'fa-file-pdf text-red-500' : 'fa-file-word text-orange-500' }} text-xs group-hover:text-white transition-colors"></i>
+                                <x-file-icon :document="$doc" class="text-xs group-hover:text-white transition-colors" />
                             </div>
-                            <a href="{{ route('documents.show', $doc) }}"
-                               class="text-sm font-bold text-slate-800 hover:text-orange-600 truncate transition-colors">
-                                {{ $doc->title }}
+                            <div class="min-w-0">
+                                <a href="{{ route('documents.show', $doc) }}"
+                                   class="text-sm font-bold text-slate-800 hover:text-orange-600 truncate transition-colors block">
+                                    @if($searchTerms)<x-highlight :segments="\App\Services\DocumentSearch::highlight($doc->title, $searchTerms)" />@else{{ $doc->title }}@endif
+                                </a>
+                                @if($searchTerms && ($snippet = \App\Services\DocumentSearch::snippet($doc->search_excerpt_source, $searchTerms, 160)))
+                                <p class="text-[11px] text-slate-500 leading-snug mt-0.5 line-clamp-2"><x-highlight :segments="$snippet" /></p>
+                                @endif
+                            </div>
+                        </div>
+                        <div class="min-w-0">
+                            @if($currentFolder && $doc->category_id === $currentFolder->id)
+                            <span class="text-[11px] text-slate-300">Ce dossier</span>
+                            @elseif($doc->category)
+                            <a href="{{ $filters->url(['category' => $doc->category_id, 'subcats' => null, 'page' => null]) }}"
+                               class="inline-flex items-center gap-1.5 max-w-full text-[11px] font-semibold text-slate-500 hover:text-orange-600 transition-colors"
+                               title="{{ $tree->label($doc->category_id) }}">
+                                <i class="fa-solid fa-folder text-amber-400 text-[10px] shrink-0"></i>
+                                <span class="truncate">{{ $doc->category->name }}</span>
                             </a>
+                            @else
+                            <span class="text-[11px] text-slate-300">Sans dossier</span>
+                            @endif
                         </div>
-                        <div class="col-span-2">
-                            <span class="px-2.5 py-1 bg-slate-100 text-slate-500 rounded-lg text-[9px] font-bold uppercase tracking-wider">
-                                {{ $doc->category?->name ?? 'Général' }}
-                            </span>
-                        </div>
-                        <div class="col-span-2">
-                            <span class="px-2.5 py-1 rounded-lg text-[9px] font-bold uppercase tracking-wider
+                        <div>
+                            <span class="px-2.5 py-1 rounded-lg text-[9px] font-bold uppercase tracking-wider whitespace-nowrap
                                 {{ $doc->status === 'approved' ? 'bg-green-50 text-green-600' :
                                    ($doc->status === 'review'   ? 'bg-blue-50 text-blue-600' :
                                    ($doc->status === 'archived' ? 'bg-slate-100 text-slate-400' :
@@ -172,7 +193,7 @@
                                 {{ statusLabel($doc->status) }}
                             </span>
                         </div>
-                        <div class="col-span-2 flex items-center justify-end gap-1">
+                        <div class="flex items-center justify-end gap-0.5">
                             <a href="{{ route('documents.show', $doc) }}"
                                title="Voir"
                                class="w-8 h-8 flex items-center justify-center rounded-lg text-slate-400 hover:bg-blue-50 hover:text-blue-600 transition-all">
@@ -209,7 +230,7 @@
                     {{-- Mobile --}}
                     <div class="md:hidden flex items-start gap-3">
                         <div class="w-10 h-10 rounded-xl {{ strtolower(pathinfo($doc->file_path, PATHINFO_EXTENSION)) === 'pdf' ? 'bg-red-50' : 'bg-orange-50' }} flex items-center justify-center shrink-0">
-                            <i class="fa-solid {{ strtolower(pathinfo($doc->file_path, PATHINFO_EXTENSION)) === 'pdf' ? 'fa-file-pdf text-red-500' : 'fa-file-word text-orange-500' }} text-sm"></i>
+                            <x-file-icon :document="$doc" class="text-sm" />
                         </div>
                         <div class="flex-1 min-w-0">
                             <a href="{{ route('documents.show', $doc) }}"
@@ -219,7 +240,9 @@
                             <div class="flex items-center gap-2 mt-1 flex-wrap">
                                 <span class="font-mono text-[9px] text-slate-400">{{ $doc->reference }}</span>
                                 <span class="text-slate-200">•</span>
-                                <span class="text-[9px] font-bold text-slate-400">{{ $doc->category?->name ?? 'Général' }}</span>
+                                @if(!$currentFolder || $doc->category_id !== $currentFolder->id)
+                                <span class="text-[9px] font-bold text-slate-400">{{ $doc->category?->name ?? 'Sans dossier' }}</span>
+                                @endif
                                 <span class="px-1.5 py-0.5 rounded text-[8px] font-bold uppercase
                                     {{ $doc->status === 'approved' ? 'bg-green-50 text-green-600' :
                                        ($doc->status === 'review'   ? 'bg-blue-50 text-blue-600' : 'bg-amber-50 text-amber-600') }}">
@@ -241,17 +264,34 @@
 
                 </div>
                 @empty
+                @if($browsingFolder)
+                @include('documents._empty-folder')
+                @else
                 <div class="flex flex-col items-center justify-center py-16 text-center">
                     <div class="w-14 h-14 rounded-2xl bg-slate-50 flex items-center justify-center mb-4">
                         <i class="fa-solid fa-folder-open text-slate-300 text-2xl"></i>
                     </div>
-                    <p class="text-sm font-bold text-slate-400">Aucun document trouvé</p>
-                    <p class="text-xs text-slate-300 mt-1">Créez votre premier document ou modifiez les filtres</p>
-                    <button @click="openModal = true"
-                        class="mt-4 inline-flex items-center gap-2 bg-orange-600 text-white text-xs font-black uppercase tracking-widest px-5 py-2.5 rounded-xl shadow-lg shadow-orange-200 hover:bg-orange-500 transition-all">
-                        <i class="fa-solid fa-plus text-[10px]"></i> Créer un document
-                    </button>
+                    @if($filters->isFiltered())
+                    <p class="text-sm font-bold text-slate-500">Aucun document ne correspond à ces critères</p>
+                    <p class="text-xs text-slate-400 mt-1">Retirez un filtre ou essayez d'autres mots.</p>
+                    <a href="{{ route('documents.index', $currentFolder ? ['category' => $currentFolder->id] : []) }}"
+                       class="mt-4 inline-flex items-center gap-2 bg-white border border-slate-200 hover:bg-slate-50 text-slate-600 text-xs font-bold px-5 py-2.5 rounded-xl transition-all">
+                        <i class="fa-solid fa-rotate-left text-[10px]"></i> Effacer les filtres
+                    </a>
+                    @else
+                    <p class="text-sm font-bold text-slate-400">Aucun document pour le moment</p>
+                    @if(auth()->user()->hasAnyRole(['admin', 'editor']))
+                    <p class="text-xs text-slate-300 mt-1">Déposez vos fichiers : Word, Excel, PowerPoint, PDF, images…</p>
+                    <div class="mt-4 flex gap-2">
+                        <button @click="uploadModal = true"
+                            class="inline-flex items-center gap-2 bg-orange-600 text-white text-xs font-black uppercase tracking-widest px-5 py-2.5 rounded-xl shadow-lg shadow-orange-200 hover:bg-orange-500 transition-all">
+                            <i class="fa-solid fa-cloud-arrow-up text-[10px]"></i> Ajouter des documents
+                        </button>
+                    </div>
+                    @endif
+                    @endif
                 </div>
+                @endif
                 @endforelse
             </div>
 
@@ -269,19 +309,26 @@
 
     {{-- ===== VUE GRILLE ===== --}}
     <div x-show="viewMode === 'grid'" x-cloak>
-        @if($documents->isEmpty())
+        @if($documents->isEmpty() && $browsingFolder)
+        <div class="bg-white rounded-2xl border border-slate-100 shadow-sm">@include('documents._empty-folder')</div>
+        @elseif($documents->isEmpty())
         <div class="flex flex-col items-center justify-center py-16 text-center bg-white rounded-2xl border border-slate-100">
             <div class="w-14 h-14 rounded-2xl bg-slate-50 flex items-center justify-center mb-4">
                 <i class="fa-solid fa-folder-open text-slate-300 text-2xl"></i>
             </div>
-            <p class="text-sm font-bold text-slate-400">Aucun document</p>
+            <p class="text-sm font-bold text-slate-400">{{ $filters->isFiltered() ? 'Aucun document ne correspond à ces critères' : 'Aucun document' }}</p>
+            @if($filters->isFiltered())
+            <a href="{{ route('documents.index', $currentFolder ? ['category' => $currentFolder->id] : []) }}" class="mt-3 text-xs font-bold text-orange-600 hover:underline">Effacer les filtres</a>
+            @endif
         </div>
         @else
         <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3 md:gap-4">
             @foreach($documents as $doc)
-            <div class="bg-white rounded-2xl border border-slate-100 shadow-sm hover:shadow-md hover:border-orange-200 transition-all group overflow-hidden">
+            <div class="bg-white rounded-2xl border border-slate-100 shadow-sm hover:shadow-md hover:border-orange-200 transition-all group overflow-hidden"
+                 @if($canMove) draggable="true" @dragstart="dragStart($event, {{ $doc->id }})" @dragend="dragEnd()" @endif
+                 :class="dragIds.includes({{ $doc->id }}) && 'opacity-50'">
                 <div class="aspect-square bg-slate-50 flex items-center justify-center group-hover:bg-orange-50 transition-colors relative">
-                    <i class="fa-solid {{ strtolower(pathinfo($doc->file_path, PATHINFO_EXTENSION)) === 'pdf' ? 'fa-file-pdf text-red-200 group-hover:text-red-400' : 'fa-file-word text-slate-200 group-hover:text-orange-400' }} text-4xl transition-colors"></i>
+                    <x-file-icon :document="$doc" class="text-4xl opacity-40 group-hover:opacity-100 transition-opacity" />
                     @if($doc->is_confidential)
                     <span class="absolute top-2 right-2 w-5 h-5 bg-red-100 rounded-full flex items-center justify-center">
                         <i class="fa-solid fa-lock text-red-500 text-[8px]"></i>
@@ -320,123 +367,13 @@
         @endif
     </div>
 
-    {{-- ===== MODAL UPLOAD FICHIER EXISTANT ===== --}}
-    <div x-show="uploadModal" x-cloak
-         class="fixed inset-0 z-[100] flex items-end sm:items-center justify-center p-0 sm:p-4">
-        <div @click="uploadModal = false"
-             x-transition:enter="transition ease-out duration-200" x-transition:enter-start="opacity-0" x-transition:enter-end="opacity-100"
-             x-transition:leave="transition ease-in duration-150" x-transition:leave-start="opacity-100" x-transition:leave-end="opacity-0"
-             class="absolute inset-0 bg-slate-900/50 backdrop-blur-sm"></div>
-        <div @click.stop
-             x-transition:enter="transition ease-out duration-200" x-transition:enter-start="opacity-0 translate-y-4 sm:scale-95" x-transition:enter-end="opacity-100 translate-y-0 sm:scale-100"
-             class="relative bg-white w-full sm:max-w-md rounded-t-3xl sm:rounded-3xl shadow-2xl overflow-hidden">
-            <div class="sticky top-0 bg-white border-b border-slate-100 px-6 py-4 flex items-center justify-between">
-                <div>
-                    <h2 class="text-base font-black text-slate-900">Importer un document</h2>
-                    <p class="text-[10px] text-slate-400 mt-0.5">Importez un fichier Word existant</p>
-                </div>
-                <button @click="uploadModal = false" class="w-8 h-8 flex items-center justify-center rounded-xl bg-slate-100 text-slate-500 hover:bg-slate-200 transition-colors">
-                    <i class="fa-solid fa-xmark text-sm"></i>
-                </button>
-            </div>
-            <form action="{{ route('documents.store') }}" method="POST" enctype="multipart/form-data" class="p-6 space-y-4"
-                  x-data="{ uploading: false, progress: 0 }"
-                  @submit.prevent="
-                    uploading = true; progress = 0;
-                    const fd = new FormData($el);
-                    const xhr = new XMLHttpRequest();
-                    xhr.open('POST', $el.action);
-                    xhr.timeout = 300000;
-                    xhr.setRequestHeader('X-CSRF-TOKEN', document.querySelector('meta[name=csrf-token]').content);
-                    xhr.upload.onprogress = e => { if (e.lengthComputable) progress = Math.round(e.loaded / e.total * 100); };
-                    xhr.onload = () => { if (xhr.status < 400) window.location.href = xhr.responseURL || '{{ route('documents.index') }}'; else { uploading = false; alert('Erreur lors de l\'import: ' + xhr.status + ' - ' + xhr.statusText); } };
-                    xhr.onerror = () => { uploading = false; alert('Erreur réseau. Vérifiez votre connexion.'); };
-                    xhr.ontimeout = () => { uploading = false; alert('Timeout: l\'upload a pris trop de temps.'); };
-                    xhr.send(fd);
-                  ">
-                @csrf
-                <input type="hidden" name="import_mode" value="1">
-                <div>
-                    <label class="block text-[9px] font-black text-slate-500 uppercase tracking-widest mb-1.5">Titre <span class="text-red-500">*</span></label>
-                    <input type="text" name="title" required placeholder="Titre du document"
-                           class="w-full bg-slate-50 border border-slate-100 rounded-xl px-4 py-2.5 text-sm font-medium text-slate-800 placeholder-slate-300 focus:outline-none focus:ring-2 focus:ring-orange-500 transition-all">
-                </div>
-                <div>
-                    <label class="block text-[9px] font-black text-slate-500 uppercase tracking-widest mb-1.5">Fichier Word (.docx) <span class="text-red-500">*</span></label>
-                    <div class="border-2 border-dashed rounded-xl p-6 text-center cursor-pointer transition-all"
-                         x-data="{ fname: '', dragging: false }"
-                         :class="dragging ? 'border-green-400 bg-green-50' : 'border-slate-200 hover:border-orange-300'"
-                         @click="$refs.importFile.click()"
-                         @dragover.prevent="dragging = true"
-                         @dragleave.prevent="dragging = false"
-                         @drop.prevent="dragging = false; fname = $event.dataTransfer.files[0]?.name; $refs.importFile.files = $event.dataTransfer.files">
-                        <input type="file" name="import_file" accept=".docx,.doc,.pdf" x-ref="importFile" required
-                               @change="fname = $event.target.files[0]?.name" class="hidden">
-                        <div x-show="!fname">
-                            <i class="fa-solid fa-cloud-arrow-up text-slate-300 text-2xl mb-2" :class="dragging && 'text-green-500'"></i>
-                            <p class="text-xs font-bold text-slate-400" :class="dragging && 'text-green-600'">
-                                <span x-show="!dragging">Glisser-déposer ou cliquer</span>
-                                <span x-show="dragging">Déposez le fichier ici</span>
-                            </p>
-                            <p class="text-[9px] text-slate-300 mt-1">.docx, .doc — max 50MB</p>
-                        </div>
-                        <div x-show="fname" class="flex flex-col items-center gap-2">
-                            <div class="flex items-center gap-2">
-                                <i class="fa-solid fa-file-word text-orange-500 text-lg"></i>
-                                <span class="text-sm font-bold text-slate-700" x-text="fname"></span>
-                            </div>
-                            <button type="button" @click.stop="fname = ''; $refs.importFile.value = ''"
-                                class="text-[9px] text-red-500 hover:text-red-700 font-bold">
-                                <i class="fa-solid fa-xmark mr-1"></i>Retirer
-                            </button>
-                        </div>
-                    </div>
-                </div>
-                <div class="grid grid-cols-2 gap-3">
-                    <div>
-                        <label class="block text-[9px] font-black text-slate-500 uppercase tracking-widest mb-1.5">Catégorie</label>
-                        <select name="category_id" class="w-full bg-slate-50 border border-slate-100 rounded-xl px-3 py-2.5 text-xs font-medium text-slate-700 focus:outline-none focus:ring-2 focus:ring-orange-500">
-                            <option value="">Sans catégorie</option>
-                            @foreach($categories as $cat)
-                            <option value="{{ $cat->id }}">{{ $cat->name }}</option>
-                            @endforeach
-                        </select>
-                    </div>
-                    <div>
-                        <label class="block text-[9px] font-black text-slate-500 uppercase tracking-widest mb-1.5">Statut</label>
-                        <select name="status" class="w-full bg-slate-50 border border-slate-100 rounded-xl px-3 py-2.5 text-xs font-medium text-slate-700 focus:outline-none focus:ring-2 focus:ring-orange-500">
-                            <option value="draft">Brouillon</option>
-                            <option value="review">En révision</option>
-                            <option value="approved">Approuvé</option>
-                        </select>
-                    </div>
-                </div>
-                <input type="hidden" name="retention_years" value="5">
+    </div>{{-- colonne principale --}}
+    </div>{{-- dossiers + liste --}}
 
-                {{-- Barre de progression --}}
-                <div x-show="uploading" class="space-y-1.5">
-                    <div class="flex items-center justify-between">
-                        <span class="text-[9px] font-bold text-slate-500">Import en cours...</span>
-                        <span class="text-[9px] font-black text-orange-600" x-text="progress + '%'"></span>
-                    </div>
-                    <div class="w-full bg-slate-100 rounded-full h-2 overflow-hidden">
-                        <div class="bg-orange-500 h-2 rounded-full transition-all duration-200"
-                             :style="'width: ' + progress + '%'"></div>
-                    </div>
-                </div>
-
-                <div class="flex gap-3 pt-1">
-                    <button type="button" @click="uploadModal = false" :disabled="uploading"
-                        class="flex-1 bg-slate-100 hover:bg-slate-200 disabled:opacity-50 text-slate-600 py-3 rounded-xl font-bold text-xs uppercase tracking-wider transition-all">Annuler</button>
-                    <button type="submit" :disabled="uploading"
-                        class="flex-1 bg-orange-600 hover:bg-orange-500 active:scale-95 disabled:opacity-60 disabled:cursor-not-allowed text-white py-3 rounded-xl font-black text-xs uppercase tracking-widest shadow-lg shadow-orange-200 transition-all">
-                        <span x-show="!uploading"><i class="fa-solid fa-cloud-arrow-up mr-1.5"></i> Importer</span>
-                        <span x-show="uploading"><i class="fa-solid fa-spinner fa-spin mr-1.5"></i> Envoi...</span>
-                    </button>
-                </div>
-            </form>
-        </div>
-    </div>
+    {{-- ===== IMPORT MULTIPLE ===== --}}
+    @if(auth()->user()->hasAnyRole(['admin', 'editor']))
+    @include('documents._bulk-import')
+    @endif
 
     {{-- BULK FORM caché --}}
     <form id="bulk-form" action="{{ route('documents.bulk') }}" method="POST" class="hidden">
@@ -445,122 +382,31 @@
         <input type="hidden" name="category_id" id="bulk-category">
         <div id="bulk-ids"></div>
     </form>
-    <div x-show="openModal" x-cloak
-         class="fixed inset-0 z-[100] flex items-end sm:items-center justify-center p-0 sm:p-4">
-        <div @click="openModal = false"
-             x-transition:enter="transition ease-out duration-200"
-             x-transition:enter-start="opacity-0"
-             x-transition:enter-end="opacity-100"
-             x-transition:leave="transition ease-in duration-150"
-             x-transition:leave-start="opacity-100"
-             x-transition:leave-end="opacity-0"
-             class="absolute inset-0 bg-slate-900/50 backdrop-blur-sm"></div>
-
-        <div @click.stop
-             x-transition:enter="transition ease-out duration-200"
-             x-transition:enter-start="opacity-0 translate-y-4 sm:scale-95"
-             x-transition:enter-end="opacity-100 translate-y-0 sm:scale-100"
-             x-transition:leave="transition ease-in duration-150"
-             x-transition:leave-start="opacity-100"
-             x-transition:leave-end="opacity-0 translate-y-4"
-             class="relative bg-white w-full sm:max-w-xl rounded-t-3xl sm:rounded-3xl shadow-2xl max-h-[92vh] overflow-y-auto">
-
-            {{-- Modal header --}}
-            <div class="sticky top-0 bg-white border-b border-slate-100 px-6 py-4 flex items-center justify-between rounded-t-3xl z-10">
-                <div>
-                    <h2 class="text-base font-black text-slate-900">Nouveau document</h2>
-                    <p class="text-[10px] text-slate-400 mt-0.5">Un QR code de vérification sera généré automatiquement</p>
-                </div>
-                <button @click="openModal = false"
-                    class="w-8 h-8 flex items-center justify-center rounded-xl bg-slate-100 text-slate-500 hover:bg-slate-200 transition-colors">
-                    <i class="fa-solid fa-xmark text-sm"></i>
-                </button>
-            </div>
-
-            <form action="{{ route('documents.store') }}" method="POST" class="p-6 space-y-5">
-                @csrf
-
-                <div>
-                    <label class="block text-[9px] font-black text-slate-500 uppercase tracking-widest mb-1.5">
-                        Titre <span class="text-red-500">*</span>
-                    </label>
-                    <input type="text" name="title" required value="{{ old('title') }}"
-                           placeholder="Ex: Contrat de prestation N°2024-001"
-                           class="w-full bg-slate-50 border border-slate-100 rounded-xl px-4 py-3 text-sm font-medium text-slate-800 placeholder-slate-300 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent transition-all">
-                    @error('title')
-                        <p class="text-red-500 text-[9px] font-bold mt-1">{{ $message }}</p>
-                    @enderror
-                </div>
-
-                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <div>
-                        <label class="block text-[9px] font-black text-slate-500 uppercase tracking-widest mb-1.5">Catégorie</label>
-                        <select name="category_id"
-                                class="w-full bg-slate-50 border border-slate-100 rounded-xl px-4 py-3 text-sm font-medium text-slate-700 focus:outline-none focus:ring-2 focus:ring-orange-500 transition-all">
-                            <option value="">Sans catégorie</option>
-                            @foreach($categories as $cat)
-                                <option value="{{ $cat->id }}" {{ old('category_id') == $cat->id ? 'selected' : '' }}>
-                                    {{ $cat->name }}
-                                </option>
-                            @endforeach
-                        </select>
-                    </div>
-                    <div>
-                        <label class="block text-[9px] font-black text-slate-500 uppercase tracking-widest mb-1.5">Statut</label>
-                        <select name="status"
-                                class="w-full bg-slate-50 border border-slate-100 rounded-xl px-4 py-3 text-sm font-medium text-slate-700 focus:outline-none focus:ring-2 focus:ring-orange-500 transition-all">
-                            <option value="draft">Brouillon</option>
-                            <option value="review">En révision</option>
-                            <option value="approved">Approuvé</option>
-                        </select>
-                    </div>
-                </div>
-
-                <div>
-                    <label class="block text-[9px] font-black text-slate-500 uppercase tracking-widest mb-1.5">Tags</label>
-                    <input type="text" name="tags" value="{{ old('tags') }}"
-                           placeholder="contrat, finance, urgent..."
-                           class="w-full bg-slate-50 border border-slate-100 rounded-xl px-4 py-3 text-sm font-medium text-slate-700 placeholder-slate-300 focus:outline-none focus:ring-2 focus:ring-orange-500 transition-all">
-                </div>
-
-                <div class="flex items-center gap-3 bg-red-50 border border-red-100 rounded-xl px-4 py-3">
-                    <input type="checkbox" name="is_confidential" value="1" id="is_confidential"
-                           class="w-4 h-4 text-red-500 border-red-300 rounded focus:ring-red-400"
-                           {{ old('is_confidential') ? 'checked' : '' }}>
-                    <label for="is_confidential" class="flex items-center gap-2 text-sm font-bold text-red-700 cursor-pointer select-none">
-                        <i class="fa-solid fa-lock text-red-500"></i>
-                        Document confidentiel
-                    </label>
-                </div>
-
-                <input type="hidden" name="retention_years" value="5">
-
-                <div class="flex gap-3 pt-2">
-                    <button type="button" @click="openModal = false"
-                        class="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-600 py-3 rounded-xl font-bold text-xs uppercase tracking-wider transition-all">
-                        Annuler
-                    </button>
-                    <button type="submit"
-                        class="flex-1 bg-orange-600 hover:bg-orange-500 active:scale-95 text-white py-3 rounded-xl font-black text-xs uppercase tracking-widest shadow-lg shadow-orange-200 transition-all">
-                        <i class="fa-solid fa-file-circle-plus mr-1.5"></i> Créer
-                    </button>
-                </div>
-            </form>
-        </div>
-    </div>
 
 </div>
 
 <script>
 function documentIndex() {
     return {
-        openModal:   {{ $errors->any() ? 'true' : 'false' }},
+        // Fenêtre dossier : 'create' | 'rename' | null (rouverte si le formulaire a été refusé)
+        folderModal: @js($folderErrors->any() ? (old('_folder_mode') === 'rename' ? 'rename' : 'create') : null),
         uploadModal: false,
+        dragIds:     [],
+        dropTarget:  null,
         viewMode:    localStorage.getItem('docViewMode') || 'list',
         selected:    [],
 
         init() {
             this.$watch('viewMode', v => localStorage.setItem('docViewMode', v));
+            // Lien « Importer des documents » (palette Ctrl+K) : #import ouvre la fenêtre d'import
+            const openImport = () => {
+                if (location.hash === '#import' && @js(auth()->user()->hasAnyRole(['admin', 'editor']))) {
+                    this.uploadModal = true;
+                    history.replaceState(null, '', location.pathname + location.search);
+                }
+            };
+            openImport();
+            window.addEventListener('hashchange', openImport);
         },
 
         toggleAll(e) {
@@ -589,6 +435,24 @@ function documentIndex() {
             });
 
             document.getElementById('bulk-form').submit();
+        },
+
+        // Glisser un document (ou la sélection qui le contient) vers un dossier
+        dragStart(event, id) {
+            this.dragIds = this.selected.includes(id) ? [...this.selected] : [id];
+            event.dataTransfer.effectAllowed = 'move';
+            event.dataTransfer.setData('text/plain', 'ged-documents:' + this.dragIds.join(','));
+        },
+        dragEnd() {
+            setTimeout(() => { this.dragIds = []; this.dropTarget = null; }, 50);
+        },
+        dropOn(categoryId, name) {
+            const ids = this.dragIds;
+            this.dropTarget = null;
+            if (!ids.length) return;
+            if (!confirm('Ranger ' + ids.length + ' document(s) dans « ' + name + ' » ?')) { this.dragIds = []; return; }
+            this.selected = ids;
+            this.submitBulk('move_category', categoryId);
         },
 
         async previewDocument(documentId) {

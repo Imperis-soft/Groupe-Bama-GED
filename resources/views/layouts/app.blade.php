@@ -4,7 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="csrf-token" content="{{ csrf_token() }}">
-    <title>Groupe Bama — GED</title>
+    <title>{{ brandName() }} — {{ config('saas.platform_name') }}</title>
+    <x-favicons />
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
     <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
@@ -38,9 +39,21 @@
             }
         }
     </script>
+    <script>
+        // Icône d'un fichier selon son extension (registre App\Support\FileType), pour les vues Alpine
+        window.GED_FILE_TYPES = @js(collect(\App\Support\FileType::TYPES)->map(fn ($t) => \App\Support\FileType::FAMILIES[$t[0]]['icon'] . ' ' . \App\Support\FileType::FAMILIES[$t[0]]['color']));
+        window.fileIcon = function (path) {
+            const ext = String(path || '').split('.').pop().toLowerCase();
+            return window.GED_FILE_TYPES[ext] || 'fa-file text-slate-400';
+        };
+    </script>
 </head>
 <body class="h-full bg-slate-50 antialiased" x-data="{ sidebarOpen: false, sidebarCollapsed: localStorage.getItem('sidebarCollapsed') === 'true' }"
       x-init="$watch('sidebarCollapsed', v => localStorage.setItem('sidebarCollapsed', v))">
+
+@auth
+    <x-page-loader />
+@endauth
 
 <div class="flex h-full">
 
@@ -68,12 +81,10 @@
 
         {{-- Logo --}}
         <div class="flex h-16 shrink-0 items-center gap-3 px-5 border-b border-slate-100">
-            <div class="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-orange-600 shadow-lg shadow-orange-200">
-                <i class="fa-solid fa-file-shield text-white text-sm"></i>
-            </div>
+            <x-logo class="h-10 w-10" />
             <div x-show="!sidebarCollapsed" x-transition.opacity>
-                <p class="text-sm font-black text-slate-900 tracking-tight leading-none">Groupe Bama</p>
-                <p class="text-[9px] font-bold text-slate-400 uppercase tracking-widest mt-0.5">GED Platform</p>
+                <p class="text-sm font-black text-slate-900 tracking-tight leading-none truncate max-w-[150px]">{{ brandName() }}</p>
+                <p class="text-[9px] font-bold text-slate-400 uppercase tracking-widest mt-0.5">{{ config('saas.platform_name') }}</p>
             </div>
             {{-- Bouton collapse desktop --}}
             <button @click="sidebarCollapsed = !sidebarCollapsed"
@@ -92,13 +103,19 @@
         <nav class="flex-1 overflow-y-auto px-3 py-5 space-y-0.5">
 
             {{-- Recherche rapide --}}
-            <form action="{{ route('documents.index') }}" method="GET" class="mb-3" x-show="!sidebarCollapsed" x-transition.opacity>
-                <div class="relative">
-                    <i class="fa-solid fa-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-slate-300 text-[10px]"></i>
-                    <input type="text" name="q" placeholder="Recherche rapide..."
-                           class="w-full bg-slate-50 border border-slate-100 rounded-xl pl-8 pr-3 py-2 text-xs font-medium text-slate-700 placeholder-slate-300 focus:outline-none focus:ring-2 focus:ring-orange-500 transition-all">
-                </div>
-            </form>
+            {{-- Recherche : ouvre la palette (Ctrl+K) --}}
+            <button type="button" @click="window.dispatchEvent(new CustomEvent('open-command-palette'))"
+                    x-show="!sidebarCollapsed" x-transition.opacity
+                    class="mb-3 w-full flex items-center gap-2 bg-slate-50 border border-slate-100 hover:border-orange-200 rounded-xl pl-3 pr-2 py-2 text-xs font-medium text-slate-400 transition-all">
+                <i class="fa-solid fa-magnifying-glass text-slate-300 text-[10px]"></i>
+                <span class="flex-1 text-left">Rechercher…</span>
+                <kbd class="text-[9px] font-bold text-slate-400 bg-white border border-slate-200 rounded px-1.5" x-text="navigator.platform.includes('Mac') ? '⌘K' : 'Ctrl K'"></kbd>
+            </button>
+            <button type="button" @click="window.dispatchEvent(new CustomEvent('open-command-palette'))"
+                    x-show="sidebarCollapsed" title="Rechercher (Ctrl+K)"
+                    class="mb-3 w-full flex justify-center py-2.5 rounded-xl text-slate-500 hover:bg-slate-100 hover:text-slate-900">
+                <i class="fa-solid fa-magnifying-glass text-[13px]"></i>
+            </button>
 
             <p x-show="!sidebarCollapsed" class="text-[9px] font-black text-slate-400 uppercase tracking-[0.2em] px-3 pb-2">Principal</p>
 
@@ -111,6 +128,24 @@
                :title="sidebarCollapsed ? 'Tableau de bord' : ''">
                 <i class="fa-solid fa-chart-pie w-4 text-center text-[13px] shrink-0"></i>
                 <span x-show="!sidebarCollapsed" x-transition.opacity>Tableau de bord</span>
+            </a>
+
+            <a href="{{ route('inbox.index') }}"
+               class="relative flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold transition-all"
+               :class="[
+                   '{{ Request::is('inbox*') ? 'bg-orange-500 text-white shadow-md shadow-orange-200' : 'text-slate-500 hover:bg-slate-100 hover:text-slate-900' }}',
+                   sidebarCollapsed ? 'justify-center' : ''
+               ]"
+               :title="sidebarCollapsed ? 'À traiter' : ''">
+                <i class="fa-solid fa-inbox w-4 text-center text-[13px] shrink-0"></i>
+                <span x-show="!sidebarCollapsed" x-transition.opacity>À traiter</span>
+                @php $inboxCount = app(\App\Services\InboxService::class)->count(auth()->user()); @endphp
+                @if($inboxCount > 0)
+                <span class="ml-auto {{ Request::is('inbox*') ? 'bg-white text-orange-600' : 'bg-orange-500 text-white' }} text-[9px] font-black rounded-full min-w-[18px] h-[18px] px-1 flex items-center justify-center"
+                      :class="sidebarCollapsed ? 'absolute top-1 right-1 ml-0' : ''">
+                    {{ $inboxCount > 99 ? '99+' : $inboxCount }}
+                </span>
+                @endif
             </a>
 
             <a href="{{ route('documents.index') }}"
@@ -170,18 +205,42 @@
                 <span x-show="!sidebarCollapsed" x-transition.opacity>Utilisateurs</span>
             </a>
 
-            <a href="{{ route('settings.index') }}"
-               class="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold transition-all"
-               :class="[
-                   '{{ Request::is('settings*') ? 'bg-orange-500 text-white shadow-md shadow-orange-200' : 'text-slate-500 hover:bg-slate-100 hover:text-slate-900' }}',
-                   sidebarCollapsed ? 'justify-center' : ''
-               ]"
-               :title="sidebarCollapsed ? 'Configuration' : ''">
-                <i class="fa-solid fa-sliders w-4 text-center text-[13px] shrink-0"></i>
-                <span x-show="!sidebarCollapsed" x-transition.opacity>Configuration</span>
-            </a>
 
             @if(auth()->user()->hasRole('admin'))
+            <a href="{{ route('departments.index') }}"
+               class="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold transition-all"
+               :class="[
+                   '{{ Request::is('departments*') ? 'bg-orange-500 text-white shadow-md shadow-orange-200' : 'text-slate-500 hover:bg-slate-100 hover:text-slate-900' }}',
+                   sidebarCollapsed ? 'justify-center' : ''
+               ]"
+               :title="sidebarCollapsed ? 'Services' : ''">
+                <i class="fa-solid fa-sitemap w-4 text-center text-[13px] shrink-0"></i>
+                <span x-show="!sidebarCollapsed" x-transition.opacity>Services</span>
+            </a>
+            <a href="{{ route('approval-templates.index') }}"
+               class="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold transition-all"
+               :class="[
+                   '{{ Request::is('approval-templates*') ? 'bg-orange-500 text-white shadow-md shadow-orange-200' : 'text-slate-500 hover:bg-slate-100 hover:text-slate-900' }}',
+                   sidebarCollapsed ? 'justify-center' : ''
+               ]"
+               :title="sidebarCollapsed ? 'Circuits d\'approbation' : ''">
+                <i class="fa-solid fa-diagram-next w-4 text-center text-[13px] shrink-0"></i>
+                <span x-show="!sidebarCollapsed" x-transition.opacity>Circuits d'approbation</span>
+            </a>
+            @php $retentionDue = \App\Models\Document::retentionDue()->count(); @endphp
+            <a href="{{ route('retention.index') }}"
+               class="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold transition-all"
+               :class="[
+                   '{{ Request::is('retention*') ? 'bg-orange-500 text-white shadow-md shadow-orange-200' : 'text-slate-500 hover:bg-slate-100 hover:text-slate-900' }}',
+                   sidebarCollapsed ? 'justify-center' : ''
+               ]"
+               :title="sidebarCollapsed ? 'Conservation' : ''">
+                <i class="fa-solid fa-hourglass-half w-4 text-center text-[13px] shrink-0"></i>
+                <span x-show="!sidebarCollapsed" x-transition.opacity class="flex-1">Conservation</span>
+                @if($retentionDue)
+                <span x-show="!sidebarCollapsed" class="min-w-[1.25rem] h-5 px-1.5 rounded-full text-[10px] font-black flex items-center justify-center {{ Request::is('retention*') ? 'bg-white text-orange-600' : 'bg-amber-100 text-amber-700' }}">{{ $retentionDue }}</span>
+                @endif
+            </a>
             <a href="{{ route('reports.index') }}"
                class="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold transition-all"
                :class="[
@@ -285,10 +344,8 @@
 
             {{-- Brand mobile --}}
             <a href="/" class="flex items-center gap-2 lg:hidden">
-                <div class="flex h-7 w-7 items-center justify-center rounded-lg bg-orange-600">
-                    <i class="fa-solid fa-file-shield text-white text-xs"></i>
-                </div>
-                <span class="font-black text-slate-900 text-sm">Groupe Bama</span>
+                <x-logo class="h-8 w-8" />
+                <span class="font-black text-slate-900 text-sm truncate max-w-[160px]">{{ brandName() }}</span>
             </a>
 
             {{-- Breadcrumb desktop --}}
@@ -296,7 +353,7 @@
                 <i class="fa-solid fa-house text-slate-300 text-[10px]"></i>
                 <span class="text-slate-300">/</span>
                 <span class="text-slate-700 font-bold capitalize">
-                    {{ ucfirst(Request::segment(1) ?: 'accueil') }}
+                    {{ ['departments' => 'Services', 'users' => 'Utilisateurs', 'documents' => 'Documents', 'categories' => 'Catégories', 'dashboard' => 'Tableau de bord', 'trash' => 'Corbeille', 'reports' => 'Rapports', 'notifications' => 'Notifications', 'profile' => 'Mon profil', 'retention' => 'Conservation'][Request::segment(1)] ?? ucfirst(Request::segment(1) ?: 'accueil') }}
                 </span>
             </div>
 
@@ -340,10 +397,6 @@
                                class="flex items-center gap-3 px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-50 hover:text-slate-900 transition">
                                 <i class="fa-solid fa-circle-user text-slate-400 w-3.5 text-center"></i> Mon profil
                             </a>
-                            <a href="{{ route('settings.index') }}"
-                               class="flex items-center gap-3 px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-50 hover:text-slate-900 transition">
-                                <i class="fa-solid fa-sliders text-slate-400 w-3.5 text-center"></i> Paramètres
-                            </a>
                         </div>
 
                         <div class="border-t border-slate-100 py-1.5">
@@ -364,6 +417,36 @@
 
         {{-- Content --}}
         <main class="flex-1 overflow-y-auto">
+            @php
+                $tenantOrg   = \App\Support\Tenant::organization();
+                $tenantSub   = $tenantOrg?->activeSubscription();
+                $daysLeft    = $tenantSub?->daysRemaining();
+                $hasNextSub  = $tenantSub && \App\Models\Subscription::where('organization_id', $tenantOrg->id)
+                                   ->where('status', '!=', 'cancelled')->whereDate('starts_at', '>', $tenantSub->ends_at)->exists();
+            @endphp
+
+            {{-- Super admin intervenant dans une entreprise --}}
+            @if(auth()->user()?->isSuperAdmin() && $tenantOrg)
+                <div class="bg-slate-900 text-white px-4 md:px-6 py-2.5 flex flex-wrap items-center justify-between gap-2 text-xs">
+                    <span><i class="fa-solid fa-crown text-orange-400 mr-1.5"></i>
+                        Super admin — vous intervenez dans l'espace de <span class="font-black">{{ $tenantOrg->name }}</span> avec les droits d'administrateur. Vos actions sont tracées.</span>
+                    <form method="POST" action="{{ route('super.leave') }}">
+                        @csrf
+                        <button class="font-black text-orange-300 hover:text-orange-200"><i class="fa-solid fa-arrow-right-from-bracket mr-1"></i> Revenir à l'espace super admin</button>
+                    </form>
+                </div>
+            @endif
+
+            {{-- Fin d'abonnement proche (administrateurs) --}}
+            @if($tenantSub && $daysLeft !== null && $daysLeft <= 14 && !$hasNextSub && auth()->user()?->hasRole('admin'))
+                <div class="bg-amber-50 border-b border-amber-100 text-amber-900 px-4 md:px-6 py-2.5 text-xs">
+                    <i class="fa-solid fa-triangle-exclamation mr-1.5"></i>
+                    {{ $tenantSub->status === 'trial' ? 'Votre essai gratuit' : 'Votre abonnement ' . $tenantSub->plan->name }}
+                    se termine {{ $daysLeft === 0 ? "aujourd'hui" : 'dans ' . $daysLeft . ' jour(s)' }} ({{ $tenantSub->ends_at->format('d/m/Y') }}).
+                    Contactez {{ config('saas.vendor_name') }} : <a href="mailto:{{ config('saas.support_email') }}" class="font-bold underline">{{ config('saas.support_email') }}</a> · {{ config('saas.support_phone') }}
+                </div>
+            @endif
+
             <div class="mx-auto max-w-7xl px-4 py-6 md:px-6 md:py-8">
                 @yield('content')
             </div>
@@ -491,7 +574,7 @@ function gedGuide() {
     const adminSteps = [
         {
             title: 'Bienvenue, ' + userName + ' !',
-            subtitle: 'Guide administrateur — Groupe Bama GED',
+            subtitle: 'Guide administrateur — ' + @json(brandName()),
             icon: 'fa-shield-halved',
             items: [
                 { icon: 'fa-chart-pie',    color: 'bg-blue-100',   iconColor: 'text-blue-500',   title: 'Tableau de bord',    desc: 'Vue d\'ensemble : documents, catégories, utilisateurs, alertes.' },
@@ -505,7 +588,7 @@ function gedGuide() {
             subtitle: 'Créer, éditer, archiver',
             icon: 'fa-file-lines',
             items: [
-                { icon: 'fa-plus',         color: 'bg-green-100',  iconColor: 'text-green-500',  title: 'Créer un document',  desc: 'Cliquez sur "Nouveau" dans la liste des documents. Un DOCX avec QR code est généré automatiquement.' },
+                { icon: 'fa-plus',         color: 'bg-green-100',  iconColor: 'text-green-500',  title: 'Ajouter un document', desc: 'Cliquez sur "Ajouter des documents" dans la liste : déposez un ou plusieurs fichiers (Word, Excel, PowerPoint, PDF, images…).' },
                 { icon: 'fa-pen',          color: 'bg-blue-100',   iconColor: 'text-blue-500',   title: 'Modifier',           desc: 'Modifiez les métadonnées (titre, catégorie, tags) depuis la page du document.' },
                 { icon: 'fa-brands fa-microsoft', color: 'bg-orange-100', iconColor: 'text-orange-500', title: 'Éditer dans Word', desc: 'Téléchargez, modifiez dans Word, puis réimportez via le panneau "Éditer dans Word".' },
                 { icon: 'fa-box-archive',  color: 'bg-amber-100',  iconColor: 'text-amber-500',  title: 'Archiver',           desc: 'Archivez les documents obsolètes — ils restent consultables mais ne sont plus actifs.' },
@@ -540,7 +623,7 @@ function gedGuide() {
     const editorSteps = [
         {
             title: 'Bienvenue, ' + userName + ' !',
-            subtitle: 'Guide éditeur — Groupe Bama GED',
+            subtitle: 'Guide éditeur — ' + @json(brandName()),
             icon: 'fa-pen-to-square',
             items: [
                 { icon: 'fa-chart-pie',    color: 'bg-blue-100',   iconColor: 'text-blue-500',   title: 'Tableau de bord',    desc: 'Consultez les documents récents, les alertes et les statistiques.' },
@@ -554,7 +637,7 @@ function gedGuide() {
             subtitle: 'Votre flux de travail quotidien',
             icon: 'fa-file-lines',
             items: [
-                { icon: 'fa-plus',         color: 'bg-green-100',  iconColor: 'text-green-500',  title: 'Nouveau document',   desc: 'Documents → "Nouveau" → remplissez le titre et la catégorie → le fichier DOCX est créé automatiquement.' },
+                { icon: 'fa-plus',         color: 'bg-green-100',  iconColor: 'text-green-500',  title: 'Nouveau document',   desc: 'Documents → "Ajouter des documents" → déposez vos fichiers, ajustez le titre et le dossier → le circuit de la catégorie démarre automatiquement.' },
                 { icon: 'fa-pen',          color: 'bg-blue-100',   iconColor: 'text-blue-500',   title: 'Modifier',           desc: 'Cliquez sur "Modifier" pour mettre à jour les métadonnées du document.' },
                 { icon: 'fa-brands fa-microsoft', color: 'bg-orange-100', iconColor: 'text-orange-500', title: 'Éditer dans Word', desc: 'Téléchargez → modifiez dans Word → réimportez via le panneau orange sur la page du document.' },
             ],
@@ -576,7 +659,7 @@ function gedGuide() {
     const viewerSteps = [
         {
             title: 'Bienvenue, ' + userName + ' !',
-            subtitle: 'Guide consultation — Groupe Bama GED',
+            subtitle: 'Guide consultation — ' + @json(brandName()),
             icon: 'fa-eye',
             items: [
                 { icon: 'fa-file-lines',   color: 'bg-orange-100', iconColor: 'text-orange-500', title: 'Consulter les documents', desc: 'Accédez à tous les documents auxquels vous avez accès depuis la liste.' },
@@ -687,5 +770,6 @@ function gedGuide() {
     </template>
 </div>
 
+    @include('layouts._command-palette')
 </body>
 </html>
